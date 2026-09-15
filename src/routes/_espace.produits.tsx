@@ -1,31 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  Package,
+  Plus,
+  Search,
+  CheckCircle2,
+  XCircle,
+  MoreVertical,
+  Trash2,
+  Edit,
+  Tag,
+  Briefcase,
+  Layers,
+} from "lucide-react";
 import { PageHeader } from "@/components/common/page-header";
-import { ConfirmDialog } from "@/components/common/confirm-dialog";
-import { EmptyState } from "@/components/common/states";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -34,6 +27,29 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatGNF } from "@/lib/format";
 import { uid, useStore } from "@/lib/store";
 import type { Product, ProductKind } from "@/lib/types";
@@ -41,238 +57,419 @@ import type { Product, ProductKind } from "@/lib/types";
 export const Route = createFileRoute("/_espace/produits")({
   head: () => ({
     meta: [
-      { title: "Produits & services — GDS Facture" },
+      { title: "Catalogue Produits & Services — GDS Facture" },
       {
         name: "description",
-        content: "Catalogue des produits et services facturables avec prix et taux de TVA.",
-      },
-      { property: "og:title", content: "Produits & services — GDS Facture" },
-      {
-        property: "og:description",
-        content: "Catalogue facturable : références, prix unitaires et TVA.",
+        content:
+          "Gérez votre catalogue de biens et prestations de services avec tarification et taux de TVA.",
       },
     ],
   }),
-  component: ProductsPage,
+  component: ProduitsPage,
 });
 
-const empty = (company_id: string): Product => ({
-  id: uid("prd"),
-  company_id,
-  reference: "",
-  label: "",
-  kind: "service",
-  unit_price: 0,
-  vat_rate: 18,
-  unit: "unité",
-  is_active: true,
-});
+function ProduitsPage() {
+  const { company, products, saveProduct, deleteProduct, logAudit, can } = useStore();
 
-function ProductsPage() {
-  const { products, company, saveProduct, deleteProduct, can, logAudit } = useStore();
-  const editable = can("manage_products");
   const [search, setSearch] = useState("");
-  const [draft, setDraft] = useState<Product | null>(null);
+  const [kindFilter, setKindFilter] = useState<string>("all");
+  const [openModal, setOpenModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
-  const filtered = products.filter((p) =>
-    [p.reference, p.label].join(" ").toLowerCase().includes(search.toLowerCase()),
-  );
+  // Form state
+  const [reference, setReference] = useState("");
+  const [label, setLabel] = useState("");
+  const [kind, setKind] = useState<ProductKind>("produit");
+  const [unitPrice, setUnitPrice] = useState<number>(0);
+  const [vatRate, setVatRate] = useState<number>(0.18);
+  const [unit, setUnit] = useState("U");
 
-  function submit() {
-    if (!draft) return;
-    if (!draft.reference.trim() || !draft.label.trim()) {
-      toast.error("La référence et le libellé sont obligatoires.");
+  const filteredProducts = products.filter((p) => {
+    const matchesSearch =
+      p.label.toLowerCase().includes(search.toLowerCase()) ||
+      p.reference.toLowerCase().includes(search.toLowerCase());
+    const matchesKind = kindFilter === "all" || p.kind === kindFilter;
+    return matchesSearch && matchesKind;
+  });
+
+  function handleOpenCreate() {
+    setEditingProduct(null);
+    setReference(`REF-${String(products.length + 1).padStart(3, "0")}`);
+    setLabel("");
+    setKind("produit");
+    setUnitPrice(100000);
+    setVatRate(0.18);
+    setUnit("U");
+    setOpenModal(true);
+  }
+
+  function handleOpenEdit(p: Product) {
+    setEditingProduct(p);
+    setReference(p.reference);
+    setLabel(p.label);
+    setKind(p.kind);
+    setUnitPrice(p.unit_price);
+    setVatRate(p.vat_rate);
+    setUnit(p.unit);
+    setOpenModal(true);
+  }
+
+  function handleSaveProduct(e: React.FormEvent) {
+    e.preventDefault();
+    if (!label.trim()) {
+      toast.error("Veuillez indiquer la désignation du produit ou service.");
       return;
     }
-    saveProduct(draft);
-    logAudit("Enregistrement produit", draft.reference);
-    toast.success("Élément enregistré.");
-    setDraft(null);
+
+    const productData: Product = {
+      id: editingProduct ? editingProduct.id : uid("prod"),
+      company_id: company.id,
+      reference: reference.trim() || `REF-${Math.floor(Math.random() * 1000)}`,
+      label: label.trim(),
+      kind,
+      unit_price: Number(unitPrice),
+      vat_rate: Number(vatRate),
+      unit: unit.trim() || "U",
+      is_active: editingProduct ? editingProduct.is_active : true,
+    };
+
+    saveProduct(productData);
+    logAudit(editingProduct ? "Modification Produit" : "Création Produit", productData.label);
+    toast.success(
+      `Article ${productData.label} ${editingProduct ? "mis à jour" : "créé avec succès"}.`,
+    );
+    setOpenModal(false);
+  }
+
+  function handleToggleActive(p: Product) {
+    const updated = { ...p, is_active: !p.is_active };
+    saveProduct(updated);
+    logAudit(updated.is_active ? "Activation Produit" : "Désactivation Produit", p.label);
+    toast.success(`Article ${p.label} ${updated.is_active ? "activé" : "désactivé"}.`);
+  }
+
+  function handleDelete(p: Product) {
+    deleteProduct(p.id);
+    logAudit("Suppression Produit", p.label);
+    toast.success(`Article ${p.label} supprimé.`);
   }
 
   return (
     <div>
       <PageHeader
-        title="Produits & services"
-        description="Catalogue utilisé pour composer vos lignes de facture."
+        title="Catalogue Produits & Services"
+        description="Consultez et administrez votre référentiel d'articles et tarifs de facturation."
         actions={
-          editable ? (
-            <Button onClick={() => setDraft(empty(company.id))}>
-              <Plus className="mr-2 size-4" />
-              Nouvel élément
-            </Button>
+          can("manage_products") ? (
+            <Dialog open={openModal} onOpenChange={setOpenModal}>
+              <DialogTrigger asChild>
+                <Button onClick={handleOpenCreate}>
+                  <Plus className="mr-2 size-4" />
+                  Nouveau Produit / Service
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>
+                    {editingProduct ? "Modifier l'article" : "Ajouter un nouvel article"}
+                  </DialogTitle>
+                  <DialogDescription>
+                    Définissez la référence, la catégorie, le prix et le taux de TVA.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <form onSubmit={handleSaveProduct} className="space-y-4 py-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="ref">Référence *</Label>
+                      <Input
+                        id="ref"
+                        value={reference}
+                        onChange={(e) => setReference(e.target.value)}
+                        className="font-mono"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="kind">Type d'article</Label>
+                      <Select value={kind} onValueChange={(v) => setKind(v as ProductKind)}>
+                        <SelectTrigger id="kind">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="produit">Bien / Produit Physique</SelectItem>
+                          <SelectItem value="service">Prestation de Service</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="sm:col-span-2 space-y-2">
+                      <Label htmlFor="lbl">Désignation / Libellé *</Label>
+                      <Input
+                        id="lbl"
+                        placeholder="ex: Licences Logiciel GDS Facture Pro"
+                        value={label}
+                        onChange={(e) => setLabel(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="price">Prix Unitaire HT (GNF) *</Label>
+                      <Input
+                        id="price"
+                        type="number"
+                        min="0"
+                        step="1000"
+                        value={unitPrice}
+                        onChange={(e) => setUnitPrice(parseFloat(e.target.value) || 0)}
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="vat">Taux de TVA</Label>
+                      <Select
+                        value={String(vatRate)}
+                        onValueChange={(v) => setVatRate(parseFloat(v))}
+                      >
+                        <SelectTrigger id="vat">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0.18">18% (Taux Standard Guinée)</SelectItem>
+                          <SelectItem value="0">0% (Exonéré / Export)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="unit">Unité de mesure</Label>
+                      <Input
+                        id="unit"
+                        placeholder="U, Heure, Jour, Forfait..."
+                        value={unit}
+                        onChange={(e) => setUnit(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setOpenModal(false)}>
+                      Annuler
+                    </Button>
+                    <Button type="submit">
+                      {editingProduct ? "Enregistrer" : "Créer l'article"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
           ) : null
         }
       />
 
-      <Card>
-        <CardContent className="space-y-4 pt-6">
-          <Input
-            placeholder="Rechercher une référence ou un libellé…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="max-w-sm"
-          />
-
-          {filtered.length === 0 ? (
-            <EmptyState
-              title="Aucun élément"
-              description="Aucun produit ou service ne correspond."
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Référence</TableHead>
-                    <TableHead>Libellé</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead className="text-right">Prix unitaire HT</TableHead>
-                    <TableHead className="text-right">TVA</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.reference}</TableCell>
-                      <TableCell>{p.label}</TableCell>
-                      <TableCell className="capitalize">{p.kind}</TableCell>
-                      <TableCell className="text-right">{formatGNF(p.unit_price)}</TableCell>
-                      <TableCell className="text-right">{p.vat_rate} %</TableCell>
-                      <TableCell>
-                        <Badge variant={p.is_active ? "secondary" : "outline"}>
-                          {p.is_active ? "Actif" : "Inactif"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {editable ? (
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setDraft({ ...p })}
-                              aria-label="Modifier"
-                            >
-                              <Pencil className="size-4" />
-                            </Button>
-                            <ConfirmDialog
-                              trigger={
-                                <Button variant="ghost" size="icon" aria-label="Supprimer">
-                                  <Trash2 className="size-4 text-destructive" />
-                                </Button>
-                              }
-                              title="Supprimer cet élément ?"
-                              description={`${p.label} sera retiré du catalogue.`}
-                              destructive
-                              confirmLabel="Supprimer"
-                              onConfirm={() => {
-                                deleteProduct(p.id);
-                                logAudit("Suppression produit", p.reference);
-                                toast.success("Élément supprimé.");
-                              }}
-                            />
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">Lecture seule</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+      {/* KPI Cards */}
+      <div className="grid gap-4 sm:grid-cols-3 mb-6">
+        <Card>
+          <CardContent className="flex items-center justify-between pt-6">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Total Catalogue
+              </p>
+              <p className="mt-2 text-2xl font-bold text-foreground">{products.length}</p>
             </div>
-          )}
+            <span className="flex size-10 items-center justify-center rounded-md bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+              <Layers className="size-5" />
+            </span>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center justify-between pt-6">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Produits Physiques
+              </p>
+              <p className="mt-2 text-2xl font-bold text-emerald-600">
+                {products.filter((p) => p.kind === "produit").length}
+              </p>
+            </div>
+            <span className="flex size-10 items-center justify-center rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+              <Package className="size-5" />
+            </span>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center justify-between pt-6">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Services & Prestations
+              </p>
+              <p className="mt-2 text-2xl font-bold text-purple-600">
+                {products.filter((p) => p.kind === "service").length}
+              </p>
+            </div>
+            <span className="flex size-10 items-center justify-center rounded-md bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+              <Briefcase className="size-5" />
+            </span>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Search & Filters */}
+      <Card className="mb-6">
+        <CardContent className="pt-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+            <Input
+              placeholder="Rechercher par référence, libellé..."
+              className="pl-9"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
+            {(["all", "produit", "service"] as const).map((k) => (
+              <Badge
+                key={k}
+                variant={kindFilter === k ? "default" : "outline"}
+                className="cursor-pointer text-xs px-2.5 py-1"
+                onClick={() => setKindFilter(k)}
+              >
+                {k === "all" ? "Tous" : k === "produit" ? "Produits" : "Services"}
+              </Badge>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
-      <Dialog open={draft !== null} onOpenChange={(o) => !o && setDraft(null)}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {draft && products.some((p) => p.id === draft.id)
-                ? "Modifier l'élément"
-                : "Nouvel élément"}
-            </DialogTitle>
-            <DialogDescription>
-              Les montants sont exprimés en francs guinéens (GNF).
-            </DialogDescription>
-          </DialogHeader>
-          {draft ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Référence</Label>
-                <Input
-                  value={draft.reference}
-                  onChange={(e) => setDraft({ ...draft, reference: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Type</Label>
-                <Select
-                  value={draft.kind}
-                  onValueChange={(v) => setDraft({ ...draft, kind: v as ProductKind })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="produit">Produit</SelectItem>
-                    <SelectItem value="service">Service</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Libellé</Label>
-                <Input
-                  value={draft.label}
-                  onChange={(e) => setDraft({ ...draft, label: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Prix unitaire HT</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={draft.unit_price}
-                  onChange={(e) => setDraft({ ...draft, unit_price: Number(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Taux de TVA (%)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={draft.vat_rate}
-                  onChange={(e) => setDraft({ ...draft, vat_rate: Number(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Unité</Label>
-                <Input
-                  value={draft.unit}
-                  onChange={(e) => setDraft({ ...draft, unit: e.target.value })}
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <Switch
-                  id="prd-active"
-                  checked={draft.is_active}
-                  onCheckedChange={(v) => setDraft({ ...draft, is_active: v })}
-                />
-                <Label htmlFor="prd-active">Actif</Label>
-              </div>
-            </div>
-          ) : null}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDraft(null)}>
-              Annuler
-            </Button>
-            <Button onClick={submit}>Enregistrer</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Tag className="size-4 text-primary" />
+            Articles du Catalogue ({filteredProducts.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Référence</TableHead>
+                  <TableHead>Désignation</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead className="text-right">Prix Unitaire HT</TableHead>
+                  <TableHead className="text-right">TVA (%)</TableHead>
+                  <TableHead>Unité</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredProducts.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={8}
+                      className="text-center py-8 text-muted-foreground text-sm"
+                    >
+                      Aucun produit ou service trouvé.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredProducts.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-mono text-xs font-semibold">
+                        {p.reference}
+                      </TableCell>
+                      <TableCell className="font-medium text-foreground">{p.label}</TableCell>
+                      <TableCell>
+                        {p.kind === "produit" ? (
+                          <Badge
+                            variant="secondary"
+                            className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                          >
+                            <Package className="mr-1 size-3" /> Produit
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="secondary"
+                            className="bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300"
+                          >
+                            <Briefcase className="mr-1 size-3" /> Service
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {formatGNF(p.unit_price)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs">
+                        {(p.vat_rate * 100).toFixed(0)}%
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{p.unit}</TableCell>
+                      <TableCell>
+                        {p.is_active ? (
+                          <Badge
+                            variant="outline"
+                            className="text-emerald-700 bg-emerald-50 border-emerald-300"
+                          >
+                            <CheckCircle2 className="mr-1 size-3 text-emerald-600" /> Actif
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="text-rose-700 bg-rose-50 border-rose-300"
+                          >
+                            <XCircle className="mr-1 size-3 text-rose-600" /> Inactif
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {can("manage_products") && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="size-8">
+                                <MoreVertical className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleOpenEdit(p)}>
+                                <Edit className="mr-2 size-4 text-blue-600" /> Modifier
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleToggleActive(p)}>
+                                {p.is_active ? (
+                                  <>
+                                    <XCircle className="mr-2 size-4 text-amber-600" /> Désactiver
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle2 className="mr-2 size-4 text-emerald-600" />{" "}
+                                    Activer
+                                  </>
+                                )}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDelete(p)}
+                                className="text-rose-600"
+                              >
+                                <Trash2 className="mr-2 size-4" /> Supprimer
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

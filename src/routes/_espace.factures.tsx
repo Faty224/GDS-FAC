@@ -11,6 +11,7 @@ import {
   Eye,
   MoreVertical,
   Filter,
+  Printer,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/page-header";
 import { EtvaStatusBadge, InvoiceStatusBadge } from "@/components/common/status-badge";
@@ -215,7 +216,7 @@ function FacturesPage() {
   }
 
   function handleDownloadPdf(inv: Invoice) {
-    toast.info(`Génération et téléchargement du PDF de la facture ${inv.reference}...`);
+    setSelectedInvoice(inv);
   }
 
   return (
@@ -499,7 +500,11 @@ function FacturesPage() {
                 </div>
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex justify-between items-center w-full">
+              <Button variant="outline" onClick={() => window.print()}>
+                <Printer className="mr-2 size-4" />
+                Imprimer / Exporter PDF
+              </Button>
               <Button onClick={() => setSelectedInvoice(null)}>Fermer</Button>
             </DialogFooter>
           </DialogContent>

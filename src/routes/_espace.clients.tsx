@@ -1,24 +1,27 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Pencil, Plus, Trash2 } from "lucide-react";
-import { PageHeader } from "@/components/common/page-header";
-import { ConfirmDialog } from "@/components/common/confirm-dialog";
-import { EmptyState } from "@/components/common/states";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Users,
+  UserPlus,
+  Search,
+  Phone,
+  Mail,
+  MapPin,
+  CheckCircle2,
+  XCircle,
+  MoreVertical,
+  Trash2,
+  Edit,
+  UserCheck,
+  UserX,
+  CreditCard,
+} from "lucide-react";
+import { PageHeader } from "@/components/common/page-header";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -27,242 +30,437 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
+import { formatGNF, invoiceTotals } from "@/lib/format";
 import { uid, useStore } from "@/lib/store";
 import type { Customer } from "@/lib/types";
 
 export const Route = createFileRoute("/_espace/clients")({
   head: () => ({
     meta: [
-      { title: "Clients — GDS Facture" },
+      { title: "Gestion des Clients — GDS Facture" },
       {
         name: "description",
-        content: "Gérez le référentiel clients : NIFp, contacts et coordonnées.",
+        content: "Gérez votre portefeuille clients, numéros NIFp et coordonnées de facturation.",
       },
-      { property: "og:title", content: "Clients — GDS Facture" },
-      { property: "og:description", content: "Référentiel clients de votre entreprise." },
     ],
   }),
-  component: CustomersPage,
+  component: ClientsPage,
 });
 
-const empty = (company_id: string): Customer => ({
-  id: uid("cus"),
-  company_id,
-  name: "",
-  nifp: "",
-  contact_name: "",
-  phone: "",
-  email: "",
-  address: "",
-  city: "",
-  is_active: true,
-  created_at: new Date().toISOString(),
-});
+function ClientsPage() {
+  const { company, customers, invoices, saveCustomer, deleteCustomer, logAudit, can } = useStore();
 
-function CustomersPage() {
-  const { customers, company, saveCustomer, deleteCustomer, can, logAudit } = useStore();
-  const editable = can("manage_customers");
   const [search, setSearch] = useState("");
-  const [draft, setDraft] = useState<Customer | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [openModal, setOpenModal] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
 
-  const filtered = customers.filter((c) =>
-    [c.name, c.nifp, c.city, c.email].join(" ").toLowerCase().includes(search.toLowerCase()),
-  );
+  // Form state
+  const [name, setName] = useState("");
+  const [nifp, setNifp] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [address, setAddress] = useState("");
+  const [city, setCity] = useState("Conakry");
 
-  function submit() {
-    if (!draft) return;
-    if (!draft.name.trim() || !draft.nifp.trim()) {
-      toast.error("Le nom et le NIFp sont obligatoires.");
+  const filteredCustomers = customers.filter((c) => {
+    const matchesSearch =
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.nifp.toLowerCase().includes(search.toLowerCase()) ||
+      c.email.toLowerCase().includes(search.toLowerCase()) ||
+      c.contact_name.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus =
+      statusFilter === "all" || (statusFilter === "active" ? c.is_active : !c.is_active);
+    return matchesSearch && matchesStatus;
+  });
+
+  function handleOpenCreate() {
+    setEditingCustomer(null);
+    setName("");
+    setNifp("");
+    setContactName("");
+    setPhone("");
+    setEmail("");
+    setAddress("");
+    setCity("Conakry");
+    setOpenModal(true);
+  }
+
+  function handleOpenEdit(c: Customer) {
+    setEditingCustomer(c);
+    setName(c.name);
+    setNifp(c.nifp);
+    setContactName(c.contact_name);
+    setPhone(c.phone);
+    setEmail(c.email);
+    setAddress(c.address);
+    setCity(c.city);
+    setOpenModal(true);
+  }
+
+  function handleSaveCustomer(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) {
+      toast.error("Veuillez indiquer le nom ou la raison sociale du client.");
       return;
     }
-    saveCustomer(draft);
-    logAudit("Enregistrement client", draft.name);
-    toast.success("Client enregistré.");
-    setDraft(null);
+
+    const customerData: Customer = {
+      id: editingCustomer ? editingCustomer.id : uid("cust"),
+      company_id: company.id,
+      name: name.trim(),
+      nifp: nifp.trim(),
+      contact_name: contactName.trim(),
+      phone: phone.trim(),
+      email: email.trim(),
+      address: address.trim(),
+      city: city.trim() || "Conakry",
+      is_active: editingCustomer ? editingCustomer.is_active : true,
+      created_at: editingCustomer ? editingCustomer.created_at : new Date().toISOString(),
+    };
+
+    saveCustomer(customerData);
+    logAudit(editingCustomer ? "Modification Client" : "Création Client", customerData.name);
+    toast.success(
+      `Client ${customerData.name} ${editingCustomer ? "mis à jour" : "créé avec succès"}.`,
+    );
+    setOpenModal(false);
+  }
+
+  function handleToggleActive(c: Customer) {
+    const updated = { ...c, is_active: !c.is_active };
+    saveCustomer(updated);
+    logAudit(updated.is_active ? "Activation Client" : "Désactivation Client", c.name);
+    toast.success(`Client ${c.name} ${updated.is_active ? "activé" : "désactivé"}.`);
+  }
+
+  function handleDelete(c: Customer) {
+    deleteCustomer(c.id);
+    logAudit("Suppression Client", c.name);
+    toast.success(`Client ${c.name} supprimé.`);
   }
 
   return (
     <div>
       <PageHeader
-        title="Clients"
-        description="Référentiel des clients facturés par votre entreprise."
+        title="Portefeuille Clients"
+        description="Gérez les fiches de vos clients, leurs numéros NIFp et leurs historiques."
         actions={
-          editable ? (
-            <Button onClick={() => setDraft(empty(company.id))}>
-              <Plus className="mr-2 size-4" />
-              Nouveau client
-            </Button>
+          can("manage_customers") ? (
+            <Dialog open={openModal} onOpenChange={setOpenModal}>
+              <DialogTrigger asChild>
+                <Button onClick={handleOpenCreate}>
+                  <UserPlus className="mr-2 size-4" />
+                  Nouveau Client
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>
+                    {editingCustomer ? "Modifier le client" : "Ajouter un nouveau client"}
+                  </DialogTitle>
+                  <DialogDescription>
+                    Renseignez les coordonnées légales et fiscales du client.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <form onSubmit={handleSaveCustomer} className="space-y-4 py-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="sm:col-span-2 space-y-2">
+                      <Label htmlFor="cust_name">Nom / Raison Sociale *</Label>
+                      <Input
+                        id="cust_name"
+                        placeholder="ex: Sociéte Guinée SARL"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="nifp">NIF permanent (NIFp)</Label>
+                      <Input
+                        id="nifp"
+                        placeholder="ex: 123456789P"
+                        value={nifp}
+                        onChange={(e) => setNifp(e.target.value)}
+                        className="font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="contact">Nom du Contact</Label>
+                      <Input
+                        id="contact"
+                        placeholder="ex: M. Camara"
+                        value={contactName}
+                        onChange={(e) => setContactName(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Téléphone</Label>
+                      <Input
+                        id="phone"
+                        placeholder="+224 620 00 00 00"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="contact@client.gn"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="city">Ville</Label>
+                      <Input id="city" value={city} onChange={(e) => setCity(e.target.value)} />
+                    </div>
+
+                    <div className="sm:col-span-2 space-y-2">
+                      <Label htmlFor="address">Adresse géographique</Label>
+                      <Input
+                        id="address"
+                        placeholder="ex: Kaloum, Immeuble Almamya"
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setOpenModal(false)}>
+                      Annuler
+                    </Button>
+                    <Button type="submit">
+                      {editingCustomer ? "Enregistrer" : "Créer le client"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
           ) : null
         }
       />
 
-      <Card>
-        <CardContent className="space-y-4 pt-6">
-          <Input
-            placeholder="Rechercher un client, un NIFp, une ville…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="max-w-sm"
-          />
-
-          {filtered.length === 0 ? (
-            <EmptyState
-              title="Aucun client"
-              description="Aucun client ne correspond à votre recherche."
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nom</TableHead>
-                    <TableHead>NIFp</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Ville</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((c) => (
-                    <TableRow key={c.id}>
-                      <TableCell className="font-medium">{c.name}</TableCell>
-                      <TableCell>{c.nifp}</TableCell>
-                      <TableCell>
-                        <div className="text-sm">{c.contact_name}</div>
-                        <div className="text-xs text-muted-foreground">{c.email}</div>
-                      </TableCell>
-                      <TableCell>{c.city}</TableCell>
-                      <TableCell>
-                        <Badge variant={c.is_active ? "secondary" : "outline"}>
-                          {c.is_active ? "Actif" : "Inactif"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {editable ? (
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setDraft({ ...c })}
-                              aria-label="Modifier"
-                            >
-                              <Pencil className="size-4" />
-                            </Button>
-                            <ConfirmDialog
-                              trigger={
-                                <Button variant="ghost" size="icon" aria-label="Supprimer">
-                                  <Trash2 className="size-4 text-destructive" />
-                                </Button>
-                              }
-                              title="Supprimer ce client ?"
-                              description={`${c.name} sera retiré du référentiel. Cette action est irréversible.`}
-                              destructive
-                              confirmLabel="Supprimer"
-                              onConfirm={() => {
-                                deleteCustomer(c.id);
-                                logAudit("Suppression client", c.name);
-                                toast.success("Client supprimé.");
-                              }}
-                            />
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">Lecture seule</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+      {/* KPI Cards */}
+      <div className="grid gap-4 sm:grid-cols-3 mb-6">
+        <Card>
+          <CardContent className="flex items-center justify-between pt-6">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Total Clients
+              </p>
+              <p className="mt-2 text-2xl font-bold text-foreground">{customers.length}</p>
             </div>
-          )}
+            <span className="flex size-10 items-center justify-center rounded-md bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+              <Users className="size-5" />
+            </span>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center justify-between pt-6">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Clients Actifs
+              </p>
+              <p className="mt-2 text-2xl font-bold text-emerald-600">
+                {customers.filter((c) => c.is_active).length}
+              </p>
+            </div>
+            <span className="flex size-10 items-center justify-center rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+              <CheckCircle2 className="size-5" />
+            </span>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center justify-between pt-6">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Total Facturé (TTC)
+              </p>
+              <p className="mt-2 text-xl font-bold text-primary">
+                {formatGNF(invoices.reduce((sum, inv) => sum + invoiceTotals(inv).ttc, 0))}
+              </p>
+            </div>
+            <span className="flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <CreditCard className="size-5" />
+            </span>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Search & Filters */}
+      <Card className="mb-6">
+        <CardContent className="pt-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+            <Input
+              placeholder="Rechercher par nom, NIFp, email..."
+              className="pl-9"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
+            {(["all", "active", "inactive"] as const).map((st) => (
+              <Badge
+                key={st}
+                variant={statusFilter === st ? "default" : "outline"}
+                className="cursor-pointer text-xs px-2.5 py-1"
+                onClick={() => setStatusFilter(st)}
+              >
+                {st === "all" ? "Tous" : st === "active" ? "Actifs" : "Inactifs"}
+              </Badge>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
-      <Dialog open={draft !== null} onOpenChange={(o) => !o && setDraft(null)}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {draft && customers.some((c) => c.id === draft.id)
-                ? "Modifier le client"
-                : "Nouveau client"}
-            </DialogTitle>
-            <DialogDescription>Le NIFp est requis pour la transmission eTVA.</DialogDescription>
-          </DialogHeader>
-          {draft ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field
-                label="Raison sociale"
-                value={draft.name}
-                onChange={(v) => setDraft({ ...draft, name: v })}
-              />
-              <Field
-                label="NIFp"
-                value={draft.nifp}
-                onChange={(v) => setDraft({ ...draft, nifp: v })}
-              />
-              <Field
-                label="Contact"
-                value={draft.contact_name}
-                onChange={(v) => setDraft({ ...draft, contact_name: v })}
-              />
-              <Field
-                label="Téléphone"
-                value={draft.phone}
-                onChange={(v) => setDraft({ ...draft, phone: v })}
-              />
-              <Field
-                label="Email"
-                value={draft.email}
-                onChange={(v) => setDraft({ ...draft, email: v })}
-              />
-              <Field
-                label="Ville"
-                value={draft.city}
-                onChange={(v) => setDraft({ ...draft, city: v })}
-              />
-              <div className="sm:col-span-2">
-                <Field
-                  label="Adresse"
-                  value={draft.address}
-                  onChange={(v) => setDraft({ ...draft, address: v })}
-                />
-              </div>
-              <div className="flex items-center gap-3 sm:col-span-2">
-                <Switch
-                  id="active"
-                  checked={draft.is_active}
-                  onCheckedChange={(v) => setDraft({ ...draft, is_active: v })}
-                />
-                <Label htmlFor="active">Client actif</Label>
-              </div>
-            </div>
-          ) : null}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDraft(null)}>
-              Annuler
-            </Button>
-            <Button onClick={submit}>Enregistrer</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <Input value={value} onChange={(e) => onChange(e.target.value)} />
+      {/* Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Users className="size-4 text-primary" />
+            Liste des Clients ({filteredCustomers.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Raison Sociale / Nom</TableHead>
+                  <TableHead>NIFp</TableHead>
+                  <TableHead>Contact</TableHead>
+                  <TableHead>Téléphone & Email</TableHead>
+                  <TableHead>Ville</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredCustomers.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={7}
+                      className="text-center py-8 text-muted-foreground text-sm"
+                    >
+                      Aucun client trouvé.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredCustomers.map((c) => (
+                    <TableRow key={c.id}>
+                      <TableCell className="font-semibold text-foreground">{c.name}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-mono text-xs">
+                          {c.nifp || "Sans NIFp"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">{c.contact_name || "—"}</TableCell>
+                      <TableCell className="text-xs space-y-0.5">
+                        {c.phone && (
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Phone className="size-3" /> {c.phone}
+                          </div>
+                        )}
+                        {c.email && (
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Mail className="size-3" /> {c.email}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <MapPin className="size-3" /> {c.city || "Conakry"}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {c.is_active ? (
+                          <Badge
+                            variant="outline"
+                            className="text-emerald-700 bg-emerald-50 border-emerald-300"
+                          >
+                            <CheckCircle2 className="mr-1 size-3 text-emerald-600" /> Actif
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="text-rose-700 bg-rose-50 border-rose-300"
+                          >
+                            <XCircle className="mr-1 size-3 text-rose-600" /> Inactif
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {can("manage_customers") && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="size-8">
+                                <MoreVertical className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleOpenEdit(c)}>
+                                <Edit className="mr-2 size-4 text-blue-600" /> Modifier
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleToggleActive(c)}>
+                                {c.is_active ? (
+                                  <>
+                                    <UserX className="mr-2 size-4 text-amber-600" /> Désactiver
+                                  </>
+                                ) : (
+                                  <>
+                                    <UserCheck className="mr-2 size-4 text-emerald-600" /> Activer
+                                  </>
+                                )}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDelete(c)}
+                                className="text-rose-600"
+                              >
+                                <Trash2 className="mr-2 size-4" /> Supprimer
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
