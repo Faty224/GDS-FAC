@@ -1,9 +1,0 @@
-
-C:\Users\Consutant Technique1\Downloads\facture-sync-hub-main\facture-sync-hub-main>"C:\Program Files\Git\cmd\git.exe" init 
-Reinitialized existing Git repository in C:/Users/Consutant Technique1/Downloads/facture-sync-hub-main/facture-sync-hub-main/.git/
-
-C:\Users\Consutant Technique1\Downloads\facture-sync-hub-main\facture-sync-hub-main>"C:\Program Files\Git\cmd\git.exe" config user.name "Faty224" 
-
-C:\Users\Consutant Technique1\Downloads\facture-sync-hub-main\facture-sync-hub-main>"C:\Program Files\Git\cmd\git.exe" config user.email "faty@gds.gn" 
-
-C:\Users\Consutant Technique1\Downloads\facture-sync-hub-main\facture-sync-hub-main>"C:\Program Files\Git\cmd\git.exe" add . 
