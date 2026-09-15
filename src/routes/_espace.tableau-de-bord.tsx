@@ -66,7 +66,7 @@ function DashboardPage() {
         description="Vue d'ensemble de votre activité de facturation."
         actions={
           <Button asChild>
-            <Link to="/factures">
+            <Link to="/factures" search={{ new: true }}>
               <FileText className="mr-2 size-4" />
               Nouvelle facture
             </Link>

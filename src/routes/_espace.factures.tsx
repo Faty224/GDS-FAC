@@ -54,6 +54,9 @@ import { uid, useStore } from "@/lib/store";
 import type { Invoice, InvoiceLine } from "@/lib/types";
 
 export const Route = createFileRoute("/_espace/factures")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    new: search.new === true || search.new === "true" || search.new === 1,
+  }),
   head: () => ({
     meta: [
       { title: "Gestion des Factures — GDS Facture" },
@@ -68,6 +71,7 @@ export const Route = createFileRoute("/_espace/factures")({
 });
 
 function FacturesPage() {
+  const searchParams = Route.useSearch();
   const {
     company,
     invoices,
@@ -83,7 +87,7 @@ function FacturesPage() {
   } = useStore();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [openModal, setOpenModal] = useState(false);
+  const [openModal, setOpenModal] = useState(Boolean(searchParams.new));
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
   // Form state for creation
