@@ -18,6 +18,7 @@ import { Route as EspaceFacturesRouteImport } from './routes/_espace.factures'
 import { Route as EspaceParametrageRouteImport } from './routes/_espace.parametrage'
 import { Route as EspaceProduitsRouteImport } from './routes/_espace.produits'
 import { Route as EspaceTableauDeBordRouteImport } from './routes/_espace.tableau-de-bord'
+import { Route as EspaceUtilisateursRouteImport } from './routes/_espace.utilisateurs'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -63,6 +64,11 @@ const EspaceTableauDeBordRoute = EspaceTableauDeBordRouteImport.update({
   path: '/tableau-de-bord',
   getParentRoute: () => EspaceRoute,
 } as any)
+const EspaceUtilisateursRoute = EspaceUtilisateursRouteImport.update({
+  id: '/utilisateurs',
+  path: '/utilisateurs',
+  getParentRoute: () => EspaceRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -73,6 +79,7 @@ export interface FileRoutesByFullPath {
   '/parametrage': typeof EspaceParametrageRoute
   '/produits': typeof EspaceProduitsRoute
   '/tableau-de-bord': typeof EspaceTableauDeBordRoute
+  '/utilisateurs': typeof EspaceUtilisateursRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -83,6 +90,7 @@ export interface FileRoutesByTo {
   '/parametrage': typeof EspaceParametrageRoute
   '/produits': typeof EspaceProduitsRoute
   '/tableau-de-bord': typeof EspaceTableauDeBordRoute
+  '/utilisateurs': typeof EspaceUtilisateursRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -95,6 +103,7 @@ export interface FileRoutesById {
   '/_espace/parametrage': typeof EspaceParametrageRoute
   '/_espace/produits': typeof EspaceProduitsRoute
   '/_espace/tableau-de-bord': typeof EspaceTableauDeBordRoute
+  '/_espace/utilisateurs': typeof EspaceUtilisateursRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -107,6 +116,7 @@ export interface FileRouteTypes {
     | '/parametrage'
     | '/produits'
     | '/tableau-de-bord'
+    | '/utilisateurs'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/parametrage'
     | '/produits'
     | '/tableau-de-bord'
+    | '/utilisateurs'
   id:
     | '__root__'
     | '/'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/_espace/parametrage'
     | '/_espace/produits'
     | '/_espace/tableau-de-bord'
+    | '/_espace/utilisateurs'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -200,6 +212,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EspaceTableauDeBordRouteImport
       parentRoute: typeof EspaceRoute
     }
+    '/_espace/utilisateurs': {
+      id: '/_espace/utilisateurs'
+      path: '/utilisateurs'
+      fullPath: '/utilisateurs'
+      preLoaderRoute: typeof EspaceUtilisateursRouteImport
+      parentRoute: typeof EspaceRoute
+    }
   }
 }
 
@@ -211,6 +230,7 @@ interface EspaceRouteChildren {
   EspaceParametrageRoute: typeof EspaceParametrageRoute
   EspaceProduitsRoute: typeof EspaceProduitsRoute
   EspaceTableauDeBordRoute: typeof EspaceTableauDeBordRoute
+  EspaceUtilisateursRoute: typeof EspaceUtilisateursRoute
 }
 
 const EspaceRouteChildren: EspaceRouteChildren = {
@@ -221,6 +241,7 @@ const EspaceRouteChildren: EspaceRouteChildren = {
   EspaceParametrageRoute: EspaceParametrageRoute,
   EspaceProduitsRoute: EspaceProduitsRoute,
   EspaceTableauDeBordRoute: EspaceTableauDeBordRoute,
+  EspaceUtilisateursRoute: EspaceUtilisateursRoute,
 }
 
 const EspaceRouteWithChildren =
