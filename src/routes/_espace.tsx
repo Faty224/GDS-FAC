@@ -12,8 +12,6 @@ import {
   ScrollText,
   Menu,
   LogOut,
-  Sun,
-  Moon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -60,23 +58,6 @@ function EspaceLayout() {
   const { currentUser, isReady, logout } = useStore();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-
-  const [isDark, setIsDark] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const saved = localStorage.getItem("gdsf_theme");
-    if (saved) return saved === "dark";
-    return document.documentElement.classList.contains("dark");
-  });
-
-  useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("gdsf_theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("gdsf_theme", "light");
-    }
-  }, [isDark]);
 
   useEffect(() => {
     if (isReady && !currentUser) navigate({ to: "/", replace: true });
@@ -148,20 +129,6 @@ function EspaceLayout() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsDark(!isDark)}
-              title={isDark ? "Passer au mode clair" : "Passer au mode sombre"}
-              aria-label="Basculer le thème"
-              className="rounded-full"
-            >
-              {isDark ? (
-                <Sun className="size-4 text-amber-400 fill-amber-400" />
-              ) : (
-                <Moon className="size-4 text-slate-700 dark:text-slate-200" />
-              )}
-            </Button>
             <div className="text-right">
               <p className="text-sm font-medium leading-tight text-foreground">
                 {currentUser.full_name}
