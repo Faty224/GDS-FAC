@@ -94,11 +94,13 @@ function EspaceLayout() {
   );
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <aside className="hidden w-64 shrink-0 lg:block">{sidebar}</aside>
+    <div className="flex h-screen overflow-hidden bg-background">
+      <aside className="hidden w-64 shrink-0 lg:block h-full border-r border-sidebar-border">
+        {sidebar}
+      </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-3 border-b border-border bg-card px-4 py-3">
+      <div className="flex min-w-0 flex-1 flex-col h-full overflow-y-auto">
+        <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-card/95 backdrop-blur-xs px-4 py-3">
           <div className="flex items-center gap-2">
             <Sheet open={open} onOpenChange={setOpen}>
               <SheetTrigger asChild>
