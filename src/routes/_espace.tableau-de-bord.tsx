@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { FileText, Send, TrendingUp, Users } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -65,9 +65,11 @@ function DashboardPage() {
         title="Tableau de bord"
         description="Vue d'ensemble de votre activité de facturation."
         actions={
-          <Button onClick={() => toast.info("Module de facturation en cours d'intégration.")}>
-            <FileText className="mr-2 size-4" />
-            Nouvelle facture
+          <Button asChild>
+            <Link to="/factures">
+              <FileText className="mr-2 size-4" />
+              Nouvelle facture
+            </Link>
           </Button>
         }
       />

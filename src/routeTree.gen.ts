@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as EspaceRouteImport } from './routes/_espace'
+import { Route as EspaceAvoirsRouteImport } from './routes/_espace.avoirs'
 import { Route as EspaceClientsRouteImport } from './routes/_espace.clients'
 import { Route as EspaceFacturesRouteImport } from './routes/_espace.factures'
 import { Route as EspaceProduitsRouteImport } from './routes/_espace.produits'
@@ -24,6 +25,11 @@ const IndexRoute = IndexRouteImport.update({
 const EspaceRoute = EspaceRouteImport.update({
   id: '/_espace',
   getParentRoute: () => rootRouteImport,
+} as any)
+const EspaceAvoirsRoute = EspaceAvoirsRouteImport.update({
+  id: '/avoirs',
+  path: '/avoirs',
+  getParentRoute: () => EspaceRoute,
 } as any)
 const EspaceClientsRoute = EspaceClientsRouteImport.update({
   id: '/clients',
@@ -48,6 +54,7 @@ const EspaceTableauDeBordRoute = EspaceTableauDeBordRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/avoirs': typeof EspaceAvoirsRoute
   '/clients': typeof EspaceClientsRoute
   '/factures': typeof EspaceFacturesRoute
   '/produits': typeof EspaceProduitsRoute
@@ -55,6 +62,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/avoirs': typeof EspaceAvoirsRoute
   '/clients': typeof EspaceClientsRoute
   '/factures': typeof EspaceFacturesRoute
   '/produits': typeof EspaceProduitsRoute
@@ -64,6 +72,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_espace': typeof EspaceRouteWithChildren
+  '/_espace/avoirs': typeof EspaceAvoirsRoute
   '/_espace/clients': typeof EspaceClientsRoute
   '/_espace/factures': typeof EspaceFacturesRoute
   '/_espace/produits': typeof EspaceProduitsRoute
@@ -71,13 +80,26 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/clients' | '/factures' | '/produits' | '/tableau-de-bord'
+  fullPaths:
+    | '/'
+    | '/avoirs'
+    | '/clients'
+    | '/factures'
+    | '/produits'
+    | '/tableau-de-bord'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/clients' | '/factures' | '/produits' | '/tableau-de-bord'
+  to:
+    | '/'
+    | '/avoirs'
+    | '/clients'
+    | '/factures'
+    | '/produits'
+    | '/tableau-de-bord'
   id:
     | '__root__'
     | '/'
     | '/_espace'
+    | '/_espace/avoirs'
     | '/_espace/clients'
     | '/_espace/factures'
     | '/_espace/produits'
@@ -104,6 +126,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof EspaceRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_espace/avoirs': {
+      id: '/_espace/avoirs'
+      path: '/avoirs'
+      fullPath: '/avoirs'
+      preLoaderRoute: typeof EspaceAvoirsRouteImport
+      parentRoute: typeof EspaceRoute
     }
     '/_espace/clients': {
       id: '/_espace/clients'
@@ -137,6 +166,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface EspaceRouteChildren {
+  EspaceAvoirsRoute: typeof EspaceAvoirsRoute
   EspaceClientsRoute: typeof EspaceClientsRoute
   EspaceFacturesRoute: typeof EspaceFacturesRoute
   EspaceProduitsRoute: typeof EspaceProduitsRoute
@@ -144,6 +174,7 @@ interface EspaceRouteChildren {
 }
 
 const EspaceRouteChildren: EspaceRouteChildren = {
+  EspaceAvoirsRoute: EspaceAvoirsRoute,
   EspaceClientsRoute: EspaceClientsRoute,
   EspaceFacturesRoute: EspaceFacturesRoute,
   EspaceProduitsRoute: EspaceProduitsRoute,
