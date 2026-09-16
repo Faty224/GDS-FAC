@@ -215,6 +215,34 @@ function FacturesPage() {
     toast.success(`Facture ${inv.reference} transmise à l'eTVA DGI (${etvaRef}).`);
   }
 
+  async function handleDownloadPdfFile(inv: Invoice) {
+    const el = document.getElementById(`printable-invoice-${inv.id}`);
+    if (!el) {
+      toast.error("Impossible de trouver le document de la facture.");
+      return;
+    }
+    toast.info(`Préparation du fichier PDF pour la facture ${inv.reference}...`);
+    try {
+      // @ts-ignore html2pdf.js untyped module
+      const html2pdfModule = await import("html2pdf.js");
+      const html2pdf = html2pdfModule.default || html2pdfModule;
+      const opt = {
+        margin: [8, 8, 8, 8] as [number, number, number, number],
+        filename: `Facture_${inv.reference}.pdf`,
+        image: { type: "jpeg" as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: "mm" as const, format: "a4" as const, orientation: "portrait" as const },
+      };
+      await html2pdf().set(opt).from(el).save();
+      toast.success(`Le fichier PDF ${inv.reference}.pdf a été téléchargé avec succès !`);
+    } catch (err) {
+      console.error("Erreur html2pdf:", err);
+      toast.error(
+        "Échec du téléchargement PDF. Utilisez l'option Imprimer > Enregistrer au format PDF.",
+      );
+    }
+  }
+
   function handleDownloadPdf(inv: Invoice) {
     setSelectedInvoice(inv);
   }
@@ -460,53 +488,276 @@ function FacturesPage() {
         </CardContent>
       </Card>
 
-      {/* Invoice Details Modal */}
+      {/* Invoice Details & Official Printable Preview Modal */}
       {selectedInvoice && (
         <Dialog open={!!selectedInvoice} onOpenChange={() => setSelectedInvoice(null)}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Facture {selectedInvoice.reference}</DialogTitle>
-              <DialogDescription>Détails du document et calculs légaux eTVA.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-2 text-sm">
-              <div className="flex justify-between border-b border-border pb-2">
-                <span className="text-muted-foreground">Client :</span>
-                <span className="font-medium">
-                  {customers.find((c) => c.id === selectedInvoice.customer_id)?.name}
-                </span>
+          <DialogContent className="max-w-4xl w-full max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden bg-slate-900/40 backdrop-blur-xs">
+            {/* Modal Control Header (no-print) */}
+            <div className="no-print flex items-center justify-between border-b border-border bg-card px-6 py-4 shrink-0">
+              <div>
+                <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                  <FileText className="size-5 text-primary" />
+                  Facture Officielle {selectedInvoice.reference}
+                </DialogTitle>
+                <DialogDescription className="text-xs">
+                  Aperçu conforme aux exigences de la Direction Générale des Impôts (eTVA DGI).
+                </DialogDescription>
               </div>
-              <div className="flex justify-between border-b border-border pb-2">
-                <span className="text-muted-foreground">Statut Document :</span>
-                <InvoiceStatusBadge status={selectedInvoice.status} />
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.print()}
+                  className="gap-1.5 border-slate-300 dark:border-slate-700"
+                >
+                  <Printer className="size-4 text-slate-700 dark:text-slate-200" />
+                  Imprimer la facture
+                </Button>
+
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => handleDownloadPdfFile(selectedInvoice)}
+                  className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs"
+                >
+                  <Download className="size-4" />
+                  Télécharger en PDF
+                </Button>
+
+                <Button variant="ghost" size="sm" onClick={() => setSelectedInvoice(null)}>
+                  Fermer
+                </Button>
               </div>
-              <div className="flex justify-between border-b border-border pb-2">
-                <span className="text-muted-foreground">Statut eTVA :</span>
-                <EtvaStatusBadge status={selectedInvoice.etva_status} />
-              </div>
-              <div className="bg-accent/30 p-3 rounded-md space-y-1">
-                <div className="flex justify-between">
-                  <span>Total HT :</span>
-                  <span>{formatGNF(invoiceTotals(selectedInvoice).ht)}</span>
+            </div>
+
+            {/* Printable A4 Document Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100 dark:bg-slate-950">
+              <div
+                id={`printable-invoice-${selectedInvoice.id}`}
+                className="print-document mx-auto max-w-3xl bg-white text-slate-900 p-8 sm:p-10 rounded-lg shadow-md border border-slate-200 text-sm space-y-8"
+              >
+                {/* Header Logo & Enterprise Info */}
+                <div className="flex flex-col sm:flex-row justify-between items-start border-b border-slate-200 pb-6 gap-6">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-14 items-center justify-center rounded-lg bg-white p-1 border border-slate-200 shadow-xs shrink-0">
+                        <img
+                          src="/logo.png"
+                          alt="Logo GDS Facture"
+                          className="size-full object-contain"
+                        />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                          {company.name}
+                        </h2>
+                        <p className="text-xs text-slate-500">
+                          Facturation & Services Électroniques
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-xs text-slate-600 space-y-0.5 pt-1">
+                      <p>
+                        <span className="font-semibold text-slate-800">NIF :</span> {company.nif} |{" "}
+                        <span className="font-semibold text-slate-800">RCCM :</span> {company.rccm}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-slate-800">Adresse :</span>{" "}
+                        {company.address}, {company.city}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-slate-800">Tél :</span> {company.phone}{" "}
+                        | <span className="font-semibold text-slate-800">Email :</span>{" "}
+                        {company.email}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right sm:w-auto w-full border-t sm:border-t-0 pt-4 sm:pt-0 border-slate-100">
+                    <div className="inline-block px-3 py-1 rounded bg-primary/10 text-primary font-bold text-lg uppercase tracking-wider mb-2">
+                      FACTURE
+                    </div>
+                    <p className="font-mono text-base font-bold text-slate-900">
+                      {selectedInvoice.reference}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Date d'émission :{" "}
+                      <span className="font-medium text-slate-800">
+                        {formatDate(selectedInvoice.issue_date)}
+                      </span>
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Date d'échéance :{" "}
+                      <span className="font-medium text-slate-800">
+                        {formatDate(selectedInvoice.due_date)}
+                      </span>
+                    </p>
+
+                    <div className="mt-3 flex justify-end gap-1.5">
+                      <InvoiceStatusBadge status={selectedInvoice.status} />
+                      <EtvaStatusBadge status={selectedInvoice.etva_status} />
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span>TVA (18%) :</span>
-                  <span>{formatGNF(invoiceTotals(selectedInvoice).vat)}</span>
+
+                {/* Client & Billing Info Box */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-slate-50 p-5 rounded-lg border border-slate-200 text-xs">
+                  <div>
+                    <p className="font-bold text-slate-800 uppercase tracking-wider text-[11px] mb-2 text-primary">
+                      Émetteur / Vendeur
+                    </p>
+                    <p className="font-semibold text-slate-900 text-sm">{company.name}</p>
+                    <p className="text-slate-600">
+                      {company.address}, {company.city}
+                    </p>
+                    <p className="text-slate-600">NIF : {company.nif}</p>
+                    <p className="text-slate-600">RCCM : {company.rccm}</p>
+                  </div>
+
+                  {(() => {
+                    const cust = customers.find((c) => c.id === selectedInvoice.customer_id);
+                    return (
+                      <div>
+                        <p className="font-bold text-slate-800 uppercase tracking-wider text-[11px] mb-2 text-primary">
+                          Facturé à / Client
+                        </p>
+                        <p className="font-bold text-slate-900 text-sm">
+                          {cust?.name || "Client Inconnu"}
+                        </p>
+                        {cust?.nifp && (
+                          <p className="text-slate-700 font-mono mt-0.5">
+                            <span className="font-semibold">NIFp :</span> {cust.nifp}
+                          </p>
+                        )}
+                        {cust?.contact_name && (
+                          <p className="text-slate-600">Contact : {cust.contact_name}</p>
+                        )}
+                        {cust?.phone && <p className="text-slate-600">Tél : {cust.phone}</p>}
+                        {cust?.email && <p className="text-slate-600">Email : {cust.email}</p>}
+                        {cust?.address && (
+                          <p className="text-slate-600">
+                            Adresse : {cust.address}, {cust.city}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
-                <div className="flex justify-between font-bold text-base pt-1 border-t border-border">
-                  <span>Total TTC :</span>
-                  <span className="text-primary">
-                    {formatGNF(invoiceTotals(selectedInvoice).ttc)}
-                  </span>
+
+                {/* Items Table */}
+                <div className="overflow-hidden border border-slate-200 rounded-lg">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100 text-slate-700 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
+                        <th className="p-3 w-8 text-center">#</th>
+                        <th className="p-3">Désignation des biens / services</th>
+                        <th className="p-3 text-center w-16">Qté</th>
+                        <th className="p-3 text-right">P.U HT (GNF)</th>
+                        <th className="p-3 text-center w-20">TVA</th>
+                        <th className="p-3 text-right">Total HT (GNF)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 text-slate-800">
+                      {selectedInvoice.lines.map((line, idx) => (
+                        <tr key={line.id || idx} className="hover:bg-slate-50/50">
+                          <td className="p-3 text-center text-slate-400 font-mono">{idx + 1}</td>
+                          <td className="p-3 font-medium text-slate-900">{line.description}</td>
+                          <td className="p-3 text-center font-semibold">{line.quantity}</td>
+                          <td className="p-3 text-right font-mono">{formatGNF(line.unit_price)}</td>
+                          <td className="p-3 text-center font-mono">
+                            {(line.vat_rate * 100).toFixed(0)}%
+                          </td>
+                          <td className="p-3 text-right font-semibold font-mono">
+                            {formatGNF(line.quantity * line.unit_price)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Totals & RIB Section */}
+                <div className="flex flex-col sm:flex-row justify-between items-start gap-6 pt-2">
+                  <div className="space-y-3 sm:w-1/2 text-xs">
+                    {company.bank_name && (
+                      <div className="p-3 rounded bg-slate-50 border border-slate-200 space-y-1">
+                        <p className="font-bold text-slate-800 text-[11px] uppercase tracking-wide">
+                          Coordonnées Bancaires (RIB)
+                        </p>
+                        <p className="text-slate-600">
+                          <span className="font-semibold">Banque :</span> {company.bank_name}
+                        </p>
+                        <p className="font-mono text-slate-800 text-[11px]">
+                          <span className="font-semibold font-sans">N° Compte / RIB :</span>{" "}
+                          {company.bank_account}
+                        </p>
+                      </div>
+                    )}
+                    <p className="text-[11px] text-slate-500 italic">
+                      Arrêté la présente facture à la somme TTC enregistrée auprès du système
+                      d'information de l'administration fiscale.
+                    </p>
+                  </div>
+
+                  <div className="w-full sm:w-72 bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-2 text-xs">
+                    {(() => {
+                      const totals = invoiceTotals(selectedInvoice);
+                      return (
+                        <>
+                          <div className="flex justify-between text-slate-600">
+                            <span>Total HT :</span>
+                            <span className="font-semibold font-mono text-slate-900">
+                              {formatGNF(totals.ht)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-slate-600">
+                            <span>TVA (18%) :</span>
+                            <span className="font-semibold font-mono text-slate-900">
+                              {formatGNF(totals.vat)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between font-bold text-sm text-slate-900 pt-2 border-t border-slate-300">
+                            <span>Total TTC (GNF) :</span>
+                            <span className="text-primary font-mono text-base">
+                              {formatGNF(totals.ttc)}
+                            </span>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* eTVA DGI Stamp & Signature Box */}
+                <div className="border-t-2 border-dashed border-slate-200 pt-6 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs">
+                  <div className="p-3 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-center gap-3">
+                    <CheckCircle2 className="size-8 text-emerald-600 shrink-0" />
+                    <div>
+                      <p className="font-bold text-xs uppercase tracking-wide">
+                        Certification eTVA DGI Guinée
+                      </p>
+                      <p className="font-mono text-[11px] text-emerald-700">
+                        {selectedInvoice.etva_reference ||
+                          `DGI-SIMULATED-${selectedInvoice.reference}`}
+                      </p>
+                      <p className="text-[10px] text-emerald-600">
+                        Conforme à la loi de finances - République de Guinée
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-center sm:text-right text-slate-500 text-[11px]">
+                    <p className="font-semibold text-slate-700">
+                      La Direction Générale de l'Entreprise
+                    </p>
+                    <p className="mt-8 text-slate-400 font-mono text-[10px]">
+                      [ Timbre et Signature Électronique ]
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-            <DialogFooter className="flex justify-between items-center w-full">
-              <Button variant="outline" onClick={() => window.print()}>
-                <Printer className="mr-2 size-4" />
-                Imprimer / Exporter PDF
-              </Button>
-              <Button onClick={() => setSelectedInvoice(null)}>Fermer</Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
