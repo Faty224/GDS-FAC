@@ -71,6 +71,21 @@ export type InvoiceStatus =
 
 export type EtvaStatus = "non_transmis" | "en_cours" | "accepte" | "rejete" | "erreur";
 
+export type PaymentStatus = "non_payee" | "partiellement_payee" | "payee";
+
+export type PaymentMethod = "virement" | "cheque" | "orange_money" | "mtn_momo" | "especes";
+
+export interface PaymentRecord {
+  id: string;
+  invoice_id: string;
+  amount: number;
+  payment_date: string;
+  method: PaymentMethod;
+  reference?: string;
+  note?: string;
+  created_at: string;
+}
+
 export interface InvoiceLine {
   id: string;
   product_id: string | null;
@@ -90,7 +105,7 @@ export interface HistoryEntry {
 export interface Invoice {
   id: string;
   company_id: string;
-  document_type: "facture" | "avoir";
+  document_type: "facture" | "avoir" | "devis";
   parent_invoice_id: string | null;
   reference: string;
   internal_reference: string;
@@ -104,6 +119,8 @@ export interface Invoice {
   etva_status: EtvaStatus;
   etva_reference: string | null;
   etva_message: string | null;
+  payment_status?: PaymentStatus;
+  paid_amount?: number;
   created_at: string;
   history: HistoryEntry[];
 }

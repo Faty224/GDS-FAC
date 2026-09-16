@@ -40,6 +40,16 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -70,6 +80,7 @@ function ClientsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [openModal, setOpenModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
 
   // Form state
   const [name, setName] = useState("");
@@ -444,7 +455,7 @@ function ClientsPage() {
                                 )}
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                onClick={() => handleDelete(c)}
+                                onClick={() => setCustomerToDelete(c)}
                                 className="text-rose-600"
                               >
                                 <Trash2 className="mr-2 size-4" /> Supprimer
@@ -461,6 +472,40 @@ function ClientsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Delete Customer Confirmation Modal */}
+      {customerToDelete && (
+        <AlertDialog
+          open={!!customerToDelete}
+          onOpenChange={(open) => {
+            if (!open) setCustomerToDelete(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Voulez-vous vraiment supprimer ce client ?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Voulez-vous vraiment supprimer le client{" "}
+                <strong>{customerToDelete.name}</strong> ? Cette action supprimera sa fiche de la liste.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setCustomerToDelete(null)}>
+                Annuler
+              </AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-rose-600 hover:bg-rose-700 text-white"
+                onClick={() => {
+                  handleDelete(customerToDelete);
+                  setCustomerToDelete(null);
+                }}
+              >
+                Oui, supprimer le client
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }

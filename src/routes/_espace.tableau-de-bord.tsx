@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { FileText, Send, TrendingUp, Users } from "lucide-react";
+import { FileText, Send, TrendingUp, Users, CreditCard, AlertCircle, CheckCircle, Clock } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PageHeader } from "@/components/common/page-header";
-import { EtvaStatusBadge, InvoiceStatusBadge } from "@/components/common/status-badge";
+import { EtvaStatusBadge, InvoiceStatusBadge, PaymentStatusBadge } from "@/components/common/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -37,33 +37,39 @@ export const Route = createFileRoute("/_espace/tableau-de-bord")({
 });
 
 function DashboardPage() {
-  const { invoices, customers } = useStore();
+  const { invoices, customers, payments } = useStore();
   const factures = invoices.filter((i) => i.document_type === "facture");
   const ca = factures.reduce((s, i) => s + invoiceTotals(i).ht, 0);
+  const totalTtc = factures.reduce((s, i) => s + invoiceTotals(i).ttc, 0);
+  const totalEncaisse = factures.reduce((s, i) => s + (i.paid_amount ?? 0), 0);
+  const resteARecouvrer = Math.max(0, totalTtc - totalEncaisse);
+  
+  const totalEnRetard = factures.filter((i) => {
+    const isOverdue = i.due_date && new Date(i.due_date) < new Date();
+    return i.status !== "brouillon" && i.payment_status !== "payee" && isOverdue;
+  }).length;
+
   const tva = factures.reduce((s, i) => s + invoiceTotals(i).vat, 0);
   const aTransmettre = invoices.filter(
     (i) => i.etva_status === "non_transmis" && i.status !== "brouillon",
   ).length;
+
   const recentes = [...invoices]
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .slice(0, 6);
 
   const kpis = [
-    { label: "Chiffre d'affaires HT", value: formatGNF(ca), icon: TrendingUp },
-    { label: "TVA collectée", value: formatGNF(tva), icon: FileText },
-    { label: "À transmettre", value: String(aTransmettre), icon: Send },
-    {
-      label: "Clients actifs",
-      value: String(customers.filter((c) => c.is_active).length),
-      icon: Users,
-    },
+    { label: "Chiffre d'affaires HT", value: formatGNF(ca), icon: TrendingUp, color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40" },
+    { label: "Total Encaissé", value: formatGNF(totalEncaisse), icon: CreditCard, color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40" },
+    { label: "Reste à Recouvrer", value: formatGNF(resteARecouvrer), icon: Clock, color: "text-amber-600 bg-amber-50 dark:bg-amber-950/40" },
+    { label: "Factures en Retard", value: String(totalEnRetard), icon: AlertCircle, color: "text-rose-600 bg-rose-50 dark:bg-rose-950/40" },
   ];
 
   return (
     <div>
       <PageHeader
         title="Tableau de bord"
-        description="Vue d'ensemble de votre activité de facturation."
+        description="Vue d'ensemble de votre activité de facturation et encaissements."
         actions={
           <Button asChild>
             <Link to="/factures" search={{ new: true }}>
@@ -84,8 +90,8 @@ function DashboardPage() {
                 </p>
                 <p className="mt-2 text-xl font-semibold text-foreground">{k.value}</p>
               </div>
-              <span className="flex size-9 items-center justify-center rounded-md bg-accent text-accent-foreground">
-                <k.icon className="size-4" />
+              <span className={`flex size-10 items-center justify-center rounded-lg ${k.color}`}>
+                <k.icon className="size-5" />
               </span>
             </CardContent>
           </Card>
@@ -123,18 +129,33 @@ function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Répartition par statut</CardTitle>
+            <CardTitle className="text-base">Suivi des Règlements</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {(["brouillon", "validee", "acceptee", "rejetee"] as const).map((status) => {
-              const count = invoices.filter((i) => i.status === status).length;
-              return (
-                <div key={status} className="flex items-center justify-between">
-                  <InvoiceStatusBadge status={status} />
-                  <span className="text-sm font-medium text-foreground">{count}</span>
-                </div>
-              );
-            })}
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-border">
+              <PaymentStatusBadge status="payee" />
+              <span className="font-semibold text-sm">
+                {factures.filter((i) => i.payment_status === "payee").length} factures
+              </span>
+            </div>
+            <div className="flex items-center justify-between pb-2 border-b border-border">
+              <PaymentStatusBadge status="partiellement_payee" />
+              <span className="font-semibold text-sm">
+                {factures.filter((i) => i.payment_status === "partiellement_payee").length} factures
+              </span>
+            </div>
+            <div className="flex items-center justify-between pb-2 border-b border-border">
+              <PaymentStatusBadge dueDate={new Date(Date.now() - 86400000).toISOString()} />
+              <span className="font-semibold text-sm text-rose-600">
+                {totalEnRetard} factures
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <PaymentStatusBadge status="non_payee" />
+              <span className="font-semibold text-sm">
+                {factures.filter((i) => (!i.payment_status || i.payment_status === "non_payee") && (!i.due_date || new Date(i.due_date) >= new Date())).length} factures
+              </span>
+            </div>
           </CardContent>
         </Card>
       </div>
