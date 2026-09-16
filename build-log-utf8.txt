@@ -1,0 +1,53 @@
+[36mvite v8.1.5 [32mbuilding client environment for production...[36m[39m
+[2Ktransforming...✓ 2622 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/client/assets/styles-_Mt1I_G8.css                   77.22 kB │ gzip:  13.01 kB
+dist/client/assets/format-Bmqla9b8.js                     0.52 kB │ gzip:   0.32 kB
+dist/client/assets/dist-3_8NKJsZ.js                       0.66 kB │ gzip:   0.45 kB
+dist/client/assets/users-Df0wBcDC.js                      0.85 kB │ gzip:   0.45 kB
+dist/client/assets/label-BLgwI1qS.js                      1.17 kB │ gzip:   0.64 kB
+dist/client/assets/table-DUiiCAho.js                      3.01 kB │ gzip:   0.90 kB
+dist/client/assets/_espace.clients-BdbJSPPK.js            4.75 kB │ gzip:   1.83 kB
+dist/client/assets/routes-Bx0lcv_v.js                     4.81 kB │ gzip:   2.08 kB
+dist/client/assets/_espace-C7bQLT38.js                    7.55 kB │ gzip:   2.83 kB
+dist/client/assets/dialog-BKjzCsIg.js                    12.70 kB │ gzip:   4.13 kB
+dist/client/assets/store-KcBOr4Ws.js                     24.68 kB │ gzip:   8.36 kB
+dist/client/assets/button-CnZKPYd0.js                    33.48 kB │ gzip:  11.11 kB
+dist/client/assets/dist-Qoi_dQmM.js                      34.62 kB │ gzip:  11.85 kB
+dist/client/assets/api-DGbG6T-r.js                       50.99 kB │ gzip:  19.22 kB
+dist/client/assets/_espace.produits-CAGQnTQw.js          60.28 kB │ gzip:  20.63 kB
+dist/client/assets/_espace.tableau-de-bord-BKVjt5fN.js  372.89 kB │ gzip:  99.68 kB
+dist/client/assets/index-Bxf1qMel.js                    400.98 kB │ gzip: 123.70 kB
+
+[33m[33m[PLUGIN_TIMINGS] [0mYour build spent significant time in plugins. Here is a breakdown:
+  - tanstack-start-core:import-protection (91%)
+  - tanstack-start-core:import-protection-transform-cache (6%)
+See https://rolldown.rs/reference/InputOptions.checks#plugintimings for more details.
+[39m
+[32m✓ built in 10.44s[39m
+[36mvite v8.1.5 [32mbuilding ssr environment for production...[36m[39m
+[2Ktransforming...✓ 88 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/server/assets/empty-plugin-adapters-D9UWiqvJ.js        0.22 kB │ gzip:  0.16 kB
+dist/server/assets/format-BJH3g5K8.js                       1.00 kB │ gzip:  0.54 kB
+dist/server/assets/label-D2fwATjQ.js                        1.27 kB │ gzip:  0.60 kB
+dist/server/assets/start-CxjCXmAx.js                        1.57 kB │ gzip:  0.71 kB
+dist/server/assets/button-CCQEfgNs.js                       1.81 kB │ gzip:  0.82 kB
+dist/server/assets/api-BCYW7VJD.js                          1.95 kB │ gzip:  1.01 kB
+dist/server/assets/_tanstack-start-manifest_v-CcA92VNX.js   2.23 kB │ gzip:  0.61 kB
+dist/server/assets/createCsrfMiddleware-B2To0gPJ.js         3.19 kB │ gzip:  1.01 kB
+dist/server/assets/table-DNqmo_Da.js                        4.43 kB │ gzip:  1.10 kB
+dist/server/server.js                                       4.61 kB │ gzip:  1.92 kB
+dist/server/assets/routes-DTPAhYAt.js                       6.99 kB │ gzip:  2.37 kB
+dist/server/assets/_espace.clients-DgwTXpST.js              8.35 kB │ gzip:  2.39 kB
+dist/server/assets/_espace-CHIm7-7-.js                      8.77 kB │ gzip:  2.72 kB
+dist/server/assets/router-BGmH9khY.js                       8.99 kB │ gzip:  2.43 kB
+dist/server/assets/_espace.tableau-de-bord-Cz207kdB.js      9.03 kB │ gzip:  2.52 kB
+dist/server/assets/dialog-CTHCxf9U.js                       9.73 kB │ gzip:  2.12 kB
+dist/server/assets/_espace.produits-Cr0a30Ar.js            13.72 kB │ gzip:  3.51 kB
+dist/server/assets/store-0RZtg0S0.js                       16.79 kB │ gzip:  4.94 kB
+dist/server/assets/server-IB-y-vhi.js                      56.40 kB │ gzip: 14.53 kB
+
+[32m✓ built in 638ms[39m
