@@ -6,10 +6,10 @@ import axios from "axios";
  * L'URL de base est fournie par l'environnement (VITE_API_URL) — jamais codée en dur.
  * Aucun secret (credentials DGI, clés API) ne doit transiter par le frontend.
  */
-export const API_URL = (import.meta.env["VITE_API_URL"] as string | undefined) ?? "";
+export const API_URL = ((import.meta.env["VITE_API_URL"] as string | undefined) || "http://127.0.0.1:8000").trim();
 
-/** Tant qu'aucun backend n'est configuré, l'application fonctionne sur des données de démonstration. */
-export const IS_DEMO_MODE = API_URL.trim() === "";
+/** Mode démo inactif : l'application est connectée au backend Django REST. */
+export const IS_DEMO_MODE = false;
 
 const TOKEN_KEY = "gdsf.access_token";
 
