@@ -26,7 +26,7 @@ export interface TransmissionResult {
 export async function transmitInvoice(invoice: Invoice): Promise<TransmissionResult> {
   if (!IS_DEMO_MODE) {
     const started = Date.now();
-    const { data, status } = await api.post("/etva/transmissions/", { invoice_id: invoice.id });
+    const { data, status } = await api.post(`/invoices/${invoice.id}/transmit_etva/`);
     // La structure de `data` suit le sérialiseur Django, lui-même aligné sur la réponse DGI.
     return {
       transmission: {

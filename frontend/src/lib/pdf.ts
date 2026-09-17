@@ -196,7 +196,9 @@ export function printInvoiceDocument(invoice: Invoice, company: Company, custome
   };
 }
 
+// @ts-ignore
 import html2canvas from "html2canvas";
+// @ts-ignore
 import { jsPDF } from "jspdf";
 
 /**
