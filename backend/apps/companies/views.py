@@ -29,14 +29,11 @@ def current_company_view(request):
         company = Company.objects.first()
         if not company:
             company = Company.objects.create(
-                raison_sociale="GDS Enterprise SARL",
+                raison_sociale="GDS Solutions SARL",
                 nif="NIF-100200300",
-                rccm="RCCM-2026-B-1234",
-                address="123 Avenue de la République, Conakry",
+                address="Conakry, Guinée",
                 phone="+224 620 00 00 00",
-                email="contact@gds-enterprise.com",
-                fiscal_regime="Régime Réel",
-                tax_center="DGI Centre 1"
+                email="contact@gds-solutions.gn"
             )
         user.company = company
         user.save()
@@ -44,7 +41,8 @@ def current_company_view(request):
     if request.method == 'GET':
         return Response(CompanySerializer(company).data)
 
-    if user.role != 'ADMIN' and not user.is_superuser:
+    role_nom = getattr(user.role, 'nom', '') if user.role else ''
+    if role_nom not in ['ADMIN', 'ADMINISTRATEUR'] and not user.is_superuser:
         return Response({'detail': "Action non autorisée. Rôle Administrateur requis."}, status=status.HTTP_403_FORBIDDEN)
 
     serializer = CompanySerializer(company, data=request.data, partial=True)

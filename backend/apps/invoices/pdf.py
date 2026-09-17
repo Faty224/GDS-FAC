@@ -65,20 +65,25 @@ def generate_invoice_pdf(invoice) -> bytes:
     company = invoice.company
     customer = invoice.customer
 
-    # Header Row: Company Info (Left) vs Document Info (Right)
+    rccm_val = getattr(company, 'rccm', None) or 'N/A'
     company_info = [
         Paragraph(f"<b>{company.raison_sociale}</b>", title_style),
-        Paragraph(f"NIF: {company.nif} | RCCM: {company.rccm or 'N/A'}", meta_style),
-        Paragraph(f"Adresse: {company.address}", meta_style),
-        Paragraph(f"Tél: {company.phone} | Email: {company.email}", meta_style),
+        Paragraph(f"NIF: {company.nif or 'N/A'} | RCCM: {rccm_val}", meta_style),
+        Paragraph(f"Adresse: {company.address or 'N/A'}", meta_style),
+        Paragraph(f"Tél: {company.phone or 'N/A'} | Email: {company.email or 'N/A'}", meta_style),
     ]
+
+    due_date_val = getattr(invoice, 'due_date', None)
+    due_date_str = due_date_val.strftime('%d/%m/%Y') if due_date_val else 'À réception'
+    etva_status_func = getattr(invoice, 'get_etva_status_display', None)
+    etva_status_str = etva_status_func() if callable(etva_status_func) else getattr(invoice, 'status', 'BROUILLON')
 
     doc_status_str = f"FACTURE {invoice.number}" if invoice.number != 'BROUILLON' else "PROFORMA / BROUILLON"
     doc_info = [
         Paragraph(f"<b>{doc_status_str}</b>", ParagraphStyle('RightTitle', parent=title_style, alignment=2)),
         Paragraph(f"Date d'émission: {invoice.date.strftime('%d/%m/%Y')}", ParagraphStyle('RMeta1', parent=meta_style, alignment=2)),
-        Paragraph(f"Date d'échéance: {invoice.due_date.strftime('%d/%m/%Y') if invoice.due_date else 'Réception'}", ParagraphStyle('RMeta2', parent=meta_style, alignment=2)),
-        Paragraph(f"Statut eTVA: {invoice.get_etva_status_display()}", ParagraphStyle('RMeta3', parent=meta_style, alignment=2)),
+        Paragraph(f"Date d'échéance: {due_date_str}", ParagraphStyle('RMeta2', parent=meta_style, alignment=2)),
+        Paragraph(f"Statut eTVA: {etva_status_str}", ParagraphStyle('RMeta3', parent=meta_style, alignment=2)),
     ]
 
     header_table = Table([[company_info, doc_info]], colWidths=[10.5 * cm, 7.5 * cm])
@@ -90,12 +95,13 @@ def generate_invoice_pdf(invoice) -> bytes:
     story.append(Spacer(1, 0.5 * cm))
     story.append(HRFlowable(width="100%", thickness=1, color=PRIMARY_COLOR, spaceBefore=0, spaceAfter=15))
 
+    city_str = getattr(customer, 'city', '') or ''
     # Customer Block Box
     customer_data = [
         [Paragraph("<b>FACTURÉ À :</b>", h2_style)],
         [Paragraph(f"<b>{customer.name}</b>", body_style)],
         [Paragraph(f"NIFp Client: <b>{customer.nifp or 'Non renseigné'}</b>", body_style)],
-        [Paragraph(f"Adresse: {customer.address or 'N/A'} {customer.city or ''}", body_style)],
+        [Paragraph(f"Adresse: {customer.address or 'N/A'} {city_str}", body_style)],
         [Paragraph(f"Contact: {customer.phone or ''} {customer.email or ''}", body_style)]
     ]
     customer_table = Table(customer_data, colWidths=[18 * cm])
@@ -119,7 +125,8 @@ def generate_invoice_pdf(invoice) -> bytes:
     ]
 
     for item in invoice.items.all():
-        desc = f"<br/><font size=8 color='#64748B'>{item.description}</font>" if item.description else ""
+        desc_val = getattr(item, 'description', None)
+        desc = f"<br/><font size=8 color='#64748B'>{desc_val}</font>" if desc_val else ""
         table_data.append([
             Paragraph(f"{item.designation}{desc}", body_style),
             Paragraph(f"{item.quantity:g}", ParagraphStyle('Q', parent=body_style, alignment=1)),
@@ -162,15 +169,19 @@ def generate_invoice_pdf(invoice) -> bytes:
     story.append(wrapper_table)
     story.append(Spacer(1, 0.8 * cm))
 
+    payment_cond = getattr(invoice, 'payment_conditions', None)
+    payment_inst = getattr(invoice, 'payment_instructions', None)
+    legal_mentions = getattr(invoice, 'legal_mentions', None)
+
     # Legal mentions and payment instructions
-    if invoice.payment_conditions or invoice.payment_instructions or invoice.legal_mentions:
+    if payment_cond or payment_inst or legal_mentions:
         story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#CBD5E1'), spaceBefore=0, spaceAfter=10))
-        if invoice.payment_conditions:
-            story.append(Paragraph(f"<b>Conditions de règlement :</b> {invoice.payment_conditions}", meta_style))
-        if invoice.payment_instructions:
-            story.append(Paragraph(f"<b>Instructions de paiement :</b> {invoice.payment_instructions}", meta_style))
-        if invoice.legal_mentions:
-            story.append(Paragraph(f"<b>Mentions légales :</b> {invoice.legal_mentions}", meta_style))
+        if payment_cond:
+            story.append(Paragraph(f"<b>Conditions de règlement :</b> {payment_cond}", meta_style))
+        if payment_inst:
+            story.append(Paragraph(f"<b>Instructions de paiement :</b> {payment_inst}", meta_style))
+        if legal_mentions:
+            story.append(Paragraph(f"<b>Mentions légales :</b> {legal_mentions}", meta_style))
 
     doc.build(story)
     return buffer.getvalue()

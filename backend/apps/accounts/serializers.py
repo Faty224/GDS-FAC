@@ -5,14 +5,16 @@ from apps.accounts.models import User
 class UserSerializer(serializers.ModelSerializer):
     company_name = serializers.SerializerMethodField()
     company_id = serializers.SerializerMethodField()
+    role_name = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = (
-            'id', 'username', 'email', 'first_name', 'last_name',
-            'role', 'phone', 'job_title', 'is_active', 'company_id', 'company_name'
+            'id', 'username', 'email',
+            'role', 'role_name', 'phone', 'job_title', 'is_active', 'is_staff', 'is_superuser',
+            'company_id', 'company_name'
         )
-        read_only_fields = ('id', 'is_active', 'company_id', 'company_name')
+        read_only_fields = ('id', 'is_active', 'company_id', 'company_name', 'role_name')
 
     def get_company_name(self, obj):
         return obj.company.raison_sociale if obj.company else None
@@ -20,13 +22,16 @@ class UserSerializer(serializers.ModelSerializer):
     def get_company_id(self, obj):
         return obj.company.id if obj.company else None
 
+    def get_role_name(self, obj):
+        return obj.role.nom if obj.role else None
+
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
 
     class Meta:
         model = User
         fields = (
-            'id', 'username', 'email', 'password', 'first_name', 'last_name',
+            'id', 'username', 'email', 'password',
             'role', 'phone', 'job_title', 'company'
         )
 

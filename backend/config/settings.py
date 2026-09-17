@@ -1,5 +1,12 @@
 import os
 from pathlib import Path
+import urllib.parse
+
+try:
+    import dotenv
+    dotenv.load_dotenv()
+except ImportError:
+    pass
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -8,6 +15,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-gds-facture-se
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('true', '1', 'yes')
 
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '*').split(',')
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -67,28 +75,39 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database configuration
-# Supports PostgreSQL via DATABASE_URL if defined, fallback to SQLite for local development
+# Supports PostgreSQL via DATABASE_URL or individual DB_* variables
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 if DATABASE_URL.startswith('postgres://') or DATABASE_URL.startswith('postgresql://'):
-    import urllib.parse
     url = urllib.parse.urlparse(DATABASE_URL)
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            'NAME': url.path[1:],
-            'USER': url.username,
-            'PASSWORD': url.password,
-            'HOST': url.hostname,
+            'NAME': urllib.parse.unquote(url.path[1:]),
+            'USER': urllib.parse.unquote(url.username or ''),
+            'PASSWORD': urllib.parse.unquote(url.password or ''),
+            'HOST': url.hostname or 'localhost',
             'PORT': url.port or 5432,
         }
     }
-else:
+elif os.environ.get('DB_ENGINE') == 'sqlite3':
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('DB_NAME', 'gds_facture'),
+            'USER': os.environ.get('DB_USER', 'postgres'),
+            'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
+            'HOST': os.environ.get('DB_HOST', 'localhost'),
+            'PORT': os.environ.get('DB_PORT', '5432'),
+        }
+    }
+
 
 AUTH_USER_MODEL = 'accounts.User'
 

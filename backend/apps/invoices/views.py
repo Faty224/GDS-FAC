@@ -75,12 +75,11 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             # Record audit event
             AuditLog.objects.create(
                 user=request.user,
-                company=invoice.company,
                 action='VALIDATE_INVOICE',
-                target_object=f"Facture {invoice.number}",
+                entity_name='Facture',
+                entity_id=invoice.id,
                 ip_address=request.META.get('REMOTE_ADDR', ''),
-                status='SUCCESS',
-                details={'invoice_id': invoice.id, 'number': invoice.number, 'total_ttc': str(invoice.total_ttc)}
+                details={'number': invoice.number, 'total_ttc': str(invoice.total_ttc), 'company_id': getattr(invoice.company, 'id', None)}
             )
 
         return Response(InvoiceSerializer(invoice).data)

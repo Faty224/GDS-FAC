@@ -60,24 +60,27 @@ def generate_credit_note_pdf(credit_note) -> bytes:
         leading=13
     )
 
-    company = credit_note.company
-    customer = credit_note.customer
     invoice = credit_note.parent_invoice
+    company = getattr(credit_note, 'company', None) or (invoice.company if invoice else None)
+    customer = getattr(credit_note, 'customer', None) or (invoice.customer if invoice else None)
 
-    # Header Row
+    rccm_val = getattr(company, 'rccm', None) or 'N/A'
     company_info = [
-        Paragraph(f"<b>{company.raison_sociale}</b>", title_style),
-        Paragraph(f"NIF: {company.nif} | RCCM: {company.rccm or 'N/A'}", meta_style),
-        Paragraph(f"Adresse: {company.address}", meta_style),
-        Paragraph(f"Tél: {company.phone} | Email: {company.email}", meta_style),
+        Paragraph(f"<b>{company.raison_sociale if company else 'N/A'}</b>", title_style),
+        Paragraph(f"NIF: {(company.nif if company else None) or 'N/A'} | RCCM: {rccm_val}", meta_style),
+        Paragraph(f"Adresse: {(company.address if company else None) or 'N/A'}", meta_style),
+        Paragraph(f"Tél: {(company.phone if company else None) or 'N/A'} | Email: {(company.email if company else None) or 'N/A'}", meta_style),
     ]
 
     doc_status_str = f"AVOIR {credit_note.number}" if credit_note.number != 'BROUILLON' else "AVOIR / BROUILLON"
+    etva_status_func = getattr(credit_note, 'get_etva_status_display', None)
+    etva_status_str = etva_status_func() if callable(etva_status_func) else getattr(credit_note, 'status', 'BROUILLON')
+
     doc_info = [
         Paragraph(f"<b>{doc_status_str}</b>", ParagraphStyle('RightTitle', parent=title_style, alignment=2)),
-        Paragraph(f"Ref Facture Origine: <b>{invoice.number}</b>", ParagraphStyle('RMeta1', parent=meta_style, alignment=2)),
+        Paragraph(f"Ref Facture Origine: <b>{invoice.number if invoice else 'N/A'}</b>", ParagraphStyle('RMeta1', parent=meta_style, alignment=2)),
         Paragraph(f"Date d'émission: {credit_note.date.strftime('%d/%m/%Y')}", ParagraphStyle('RMeta2', parent=meta_style, alignment=2)),
-        Paragraph(f"Statut eTVA: {credit_note.get_etva_status_display()}", ParagraphStyle('RMeta3', parent=meta_style, alignment=2)),
+        Paragraph(f"Statut eTVA: {etva_status_str}", ParagraphStyle('RMeta3', parent=meta_style, alignment=2)),
     ]
 
     header_table = Table([[company_info, doc_info]], colWidths=[10.5 * cm, 7.5 * cm])
@@ -90,8 +93,9 @@ def generate_credit_note_pdf(credit_note) -> bytes:
     story.append(HRFlowable(width="100%", thickness=1, color=PRIMARY_COLOR, spaceBefore=0, spaceAfter=15))
 
     # Reason Box
+    reason_text = getattr(credit_note, 'reason', None) or "Avoir suite à régularisation"
     reason_data = [
-        [Paragraph(f"<b>MOTIF DE L'AVOIR :</b> {credit_note.reason}", body_style)]
+        [Paragraph(f"<b>MOTIF DE L'AVOIR :</b> {reason_text}", body_style)]
     ]
     reason_table = Table(reason_data, colWidths=[18 * cm])
     reason_table.setStyle(TableStyle([
@@ -114,12 +118,13 @@ def generate_credit_note_pdf(credit_note) -> bytes:
     ]
 
     for item in credit_note.items.all():
-        desc = f"<br/><font size=8 color='#64748B'>{item.description}</font>" if item.description else ""
+        desc_val = getattr(item, 'description', None)
+        desc = f"<br/><font size=8 color='#64748B'>{desc_val}</font>" if desc_val else ""
         table_data.append([
             Paragraph(f"{item.designation}{desc}", body_style),
             Paragraph(f"{item.quantity:g}", ParagraphStyle('Q', parent=body_style, alignment=1)),
             Paragraph(f"{item.unit_price:,.2f} GNF", ParagraphStyle('P', parent=body_style, alignment=2)),
-            Paragraph(f"{item.vat_rate:g}%", ParagraphStyle('V', parent=body_style, alignment=1)),
+            Paragraph(f"{getattr(item, 'vat_rate', 18):g}%", ParagraphStyle('V', parent=body_style, alignment=1)),
             Paragraph(f"{item.line_total_ht:,.2f} GNF", ParagraphStyle('T', parent=body_style, alignment=2)),
         ])
 

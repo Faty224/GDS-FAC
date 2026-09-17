@@ -22,9 +22,9 @@ class CreditNoteViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        qs = CreditNote.objects.select_related('customer', 'company', 'parent_invoice').prefetch_related('items').all()
+        qs = CreditNote.objects.select_related('parent_invoice', 'parent_invoice__customer', 'parent_invoice__company').prefetch_related('items').all()
         if not user.is_superuser and user.company:
-            qs = qs.filter(company=user.company)
+            qs = qs.filter(parent_invoice__company=user.company)
 
         invoice_id = self.request.query_params.get('invoice')
         if invoice_id:
@@ -43,10 +43,11 @@ class CreditNoteViewSet(viewsets.ModelViewSet):
             return Response({'detail': "L'avoir doit contenir au moins une ligne."}, status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
-            billing_settings = BillingSettings.objects.filter(company=credit_note.company, is_active=True).first()
+            company = credit_note.parent_invoice.company
+            billing_settings = BillingSettings.objects.filter(company=company, is_active=True).first()
             if not billing_settings:
                 billing_settings = BillingSettings.objects.create(
-                    company=credit_note.company,
+                    company=company,
                     credit_note_prefix='AV-2026-',
                     next_credit_note_number=1
                 )
@@ -64,7 +65,7 @@ class CreditNoteViewSet(viewsets.ModelViewSet):
 
             AuditLog.objects.create(
                 user=request.user,
-                company=credit_note.company,
+                company=company,
                 action='VALIDATE_CREDIT_NOTE',
                 target_object=f"Avoir {credit_note.number}",
                 ip_address=request.META.get('REMOTE_ADDR', ''),

@@ -18,8 +18,8 @@ def dashboard_stats_view(request):
 
     invoices_qs = Invoice.objects.all()
     credit_notes_qs = CreditNote.objects.all()
-    customers_qs = Customer.objects.filter(is_archived=False)
-    products_qs = Product.objects.filter(is_active=True)
+    customers_qs = Customer.objects.filter(status='ACTIF')
+    products_qs = Product.objects.filter(status='ACTIF')
 
     if not user.is_superuser and company:
         invoices_qs = invoices_qs.filter(company=company)

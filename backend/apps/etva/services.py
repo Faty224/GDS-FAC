@@ -3,7 +3,7 @@ import json
 from django.conf import settings
 from django.utils import timezone
 from apps.invoices.models import InvoiceStatus, ETVAStatus
-from apps.etva.models import ETVATransmission, ETVATransmissionStatus, ETVAEnvironment
+from apps.etva.models import ETVATransmission, ETVATransmissionStatus
 from apps.audit.models import AuditLog
 
 class ETVAService:
@@ -17,7 +17,7 @@ class ETVAService:
 
     @classmethod
     def get_environment(cls) -> str:
-        return getattr(settings, 'ETVA_ENVIRONMENT', ETVAEnvironment.SANDBOX)
+        return getattr(settings, 'ETVA_ENVIRONMENT', 'SANDBOX')
 
     @classmethod
     def build_invoice_payload(cls, invoice) -> dict:
@@ -32,7 +32,7 @@ class ETVAService:
             "total_ht": float(invoice.total_ht),
             "total_tva": float(invoice.total_tva),
             "total_ttc": float(invoice.total_ttc),
-            "currency": invoice.billing_settings.default_currency if invoice.billing_settings else "GNF",
+            "currency": getattr(getattr(invoice, 'billing_settings', None), 'default_currency', 'GNF'),
             "line_items": [
                 {
                     "designation": item.designation,
@@ -62,10 +62,13 @@ class ETVAService:
 
         duration_ms = int((time.time() - start_time) * 1000)
 
-        # Update invoice statuses
+        # Update invoice status
         invoice.status = InvoiceStatus.ACCEPTED
-        invoice.etva_status = ETVAStatus.ACCEPTED
-        invoice.save(update_fields=['status', 'etva_status'])
+        if hasattr(invoice, 'etva_status'):
+            invoice.etva_status = ETVAStatus.ACCEPTED
+            invoice.save(update_fields=['status', 'etva_status'])
+        else:
+            invoice.save(update_fields=['status'])
 
         # Create safe transmission log (without storing auth tokens or secrets)
         safe_response = {
@@ -76,30 +79,29 @@ class ETVAService:
         }
 
         transmission = ETVATransmission.objects.create(
-            company=invoice.company,
             invoice=invoice,
-            environment=env,
-            status=transmission_status,
-            external_reference=ext_ref,
+            endpoint="/api/v1/factures/transmission",
+            method="POST",
             http_status=http_status,
-            response_message=api_message,
-            response_payload=json.dumps(safe_response, ensure_ascii=False),
-            duration_ms=duration_ms,
-            transmitted_by=user
+            request_id=f"REQ-{int(start_time)}",
+            response_reference=ext_ref,
+            status=transmission_status,
+            request_payload=payload,
+            response_payload=safe_response
         )
 
         AuditLog.objects.create(
             user=user,
-            company=invoice.company,
             action='TRANSMIT_ETVA',
-            target_object=f"Facture {invoice.number}",
+            entity_name='Facture',
+            entity_id=invoice.id,
             ip_address='',
-            status='SUCCESS',
             details={
-                'invoice_id': invoice.id,
+                'invoice_number': invoice.number,
                 'environment': env,
                 'external_ref': ext_ref,
-                'http_status': http_status
+                'http_status': http_status,
+                'company_id': getattr(invoice.company, 'id', None)
             }
         )
 
