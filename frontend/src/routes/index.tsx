@@ -49,8 +49,13 @@ function LoginPage() {
       logAudit("Connexion", user.email);
       toast.success(`Bienvenue, ${user.full_name}`);
       navigate({ to: "/tableau-de-bord", replace: true });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Connexion impossible.");
+    } catch (err: any) {
+      const msg = err?.message || "";
+      if (msg.includes("Service indisponible") || msg.includes("Network Error") || msg.includes("failed")) {
+        setError("Impossible de contacter le serveur Django sur http://127.0.0.1:8000. Assurez-vous d'avoir lancé 'python manage.py runserver' dans le backend.");
+      } else {
+        setError(msg || "Connexion impossible.");
+      }
     } finally {
       setLoading(false);
     }

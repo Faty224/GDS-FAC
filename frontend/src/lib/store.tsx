@@ -173,10 +173,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             const me = normalizeUser(rawMe);
             setCurrentUser(me);
             window.localStorage.setItem(SESSION_KEY, JSON.stringify(me));
-          } catch {
+          } catch (e) {
+            // Backend offline or token expired/invalid: purge session completely
             setAccessToken(null);
             setCurrentUser(null);
+            window.localStorage.removeItem(SESSION_KEY);
           }
+        } else {
+          setCurrentUser(null);
+          window.localStorage.removeItem(SESSION_KEY);
         }
       } else {
         try {
