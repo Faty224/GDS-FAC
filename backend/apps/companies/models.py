@@ -1,23 +1,63 @@
-from django.db import models
+﻿from django.db import models
+from django.utils import timezone
+
 
 class Company(models.Model):
-    raison_sociale = models.CharField(max_length=255, verbose_name="Raison Sociale")
-    nif = models.CharField(max_length=50, unique=True, verbose_name="Numéro d'Identification Fiscale (NIF)")
-    rccm = models.CharField(max_length=100, blank=True, default='', verbose_name="RCCM")
-    address = models.TextField(verbose_name="Adresse siège social")
-    phone = models.CharField(max_length=50, verbose_name="Téléphone")
-    email = models.EmailField(verbose_name="Email de contact")
-    fiscal_regime = models.CharField(max_length=100, blank=True, default='Régime Réel', verbose_name="Régime Fiscal")
-    tax_center = models.CharField(max_length=100, blank=True, default='', verbose_name="Centre des Impôts")
-    logo_url = models.URLField(max_length=500, blank=True, default='')
-    bank_name = models.CharField(max_length=100, blank=True, default='')
-    bank_iban = models.CharField(max_length=100, blank=True, default='')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    id = models.BigAutoField(primary_key=True)
+
+    raison_sociale = models.CharField(
+        max_length=150,
+        db_column="nom",
+        verbose_name="Nom / Raison sociale",
+    )
+
+    nif = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        verbose_name="NIF",
+    )
+
+    address = models.TextField(
+        null=True,
+        blank=True,
+        db_column="adresse",
+        verbose_name="Adresse",
+    )
+
+    phone = models.CharField(
+        max_length=30,
+        null=True,
+        blank=True,
+        db_column="telephone",
+        verbose_name="Téléphone",
+    )
+
+    email = models.EmailField(
+        max_length=255,
+        null=True,
+        blank=True,
+        verbose_name="Email",
+    )
+
+    logo_url = models.TextField(
+        null=True,
+        blank=True,
+        db_column="logo",
+        verbose_name="Logo",
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        verbose_name="Date de création",
+    )
 
     class Meta:
+        db_table = "entreprise"
+        managed = False
         verbose_name = "Entreprise"
         verbose_name_plural = "Entreprises"
+        ordering = ["raison_sociale"]
 
     def __str__(self):
-        return f"{self.raison_sociale} (NIF: {self.nif})"
+        return self.raison_sociale

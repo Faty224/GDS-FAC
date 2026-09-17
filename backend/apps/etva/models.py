@@ -1,70 +1,94 @@
-from django.db import models
+﻿from django.db import models
+from django.utils import timezone
 
-class ETVAEnvironment(models.TextChoices):
-    SANDBOX = 'SANDBOX', 'Sandbox / Démo'
-    HOMOLOGATION = 'HOMOLOGATION', 'Homologation DGI'
-    PRODUCTION = 'PRODUCTION', 'Production'
 
 class ETVATransmissionStatus(models.TextChoices):
-    SUCCESS = 'SUCCESS', 'Transmis & Validé DGI'
-    REJECTED = 'REJECTED', 'Rejeté par la DGI'
-    ERROR = 'ERROR', 'Erreur Technique'
-    PENDING = 'PENDING', 'En cours de traitement'
+    SUCCESS = "SUCCESS", "Transmise / Validée"
+    REJECTED = "REJECTED", "Rejetée"
+    ERROR = "ERROR", "Erreur technique"
+    PENDING = "PENDING", "En cours"
+
 
 class ETVATransmission(models.Model):
-    company = models.ForeignKey(
-        'companies.Company',
-        on_delete=models.CASCADE,
-        related_name='etva_transmissions',
-        verbose_name="Entreprise"
-    )
+    id = models.BigAutoField(primary_key=True)
+
     invoice = models.ForeignKey(
-        'invoices.Invoice',
-        on_delete=models.CASCADE,
+        "invoices.Invoice",
+        db_column="facture_id",
+        on_delete=models.RESTRICT,
+        related_name="etva_transactions",
+        verbose_name="Facture",
+    )
+
+    endpoint = models.CharField(
+        max_length=500,
+        verbose_name="Endpoint API",
+    )
+
+    method = models.CharField(
+        max_length=10,
+        verbose_name="Méthode HTTP",
+    )
+
+    http_status = models.IntegerField(
         null=True,
         blank=True,
-        related_name='etva_transmissions',
-        verbose_name="Facture"
+        verbose_name="Code HTTP",
     )
-    credit_note = models.ForeignKey(
-        'credit_notes.CreditNote',
-        on_delete=models.CASCADE,
+
+    request_id = models.CharField(
+        max_length=255,
         null=True,
         blank=True,
-        related_name='etva_transmissions',
-        verbose_name="Avoir"
+        verbose_name="Request ID",
     )
-    environment = models.CharField(
-        max_length=20,
-        choices=ETVAEnvironment.choices,
-        default=ETVAEnvironment.SANDBOX,
-        verbose_name="Environnement"
+
+    response_reference = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        verbose_name="Référence réponse",
     )
+
     status = models.CharField(
-        max_length=20,
+        max_length=30,
         choices=ETVATransmissionStatus.choices,
-        default=ETVATransmissionStatus.PENDING,
-        verbose_name="Statut Transmission"
+        verbose_name="Statut",
     )
-    external_reference = models.CharField(max_length=100, blank=True, default='', verbose_name="Référence DGI / Signin")
-    http_status = models.IntegerField(null=True, blank=True, verbose_name="Code HTTP")
-    response_message = models.TextField(blank=True, default='', verbose_name="Message API")
-    response_payload = models.TextField(blank=True, default='', verbose_name="Données Réponse API (Masquées)")
-    duration_ms = models.IntegerField(default=0, verbose_name="Durée de la requête (ms)")
-    transmitted_by = models.ForeignKey(
-        'accounts.User',
-        on_delete=models.SET_NULL,
+
+    error_code = models.CharField(
+        max_length=100,
         null=True,
         blank=True,
-        verbose_name="Transmis par"
+        verbose_name="Code erreur",
     )
-    transmitted_at = models.DateTimeField(auto_now_add=True, verbose_name="Date de transmission")
+
+    request_payload = models.JSONField(
+        null=True,
+        blank=True,
+        verbose_name="Requête JSON",
+    )
+
+    response_payload = models.JSONField(
+        null=True,
+        blank=True,
+        verbose_name="Réponse JSON",
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        verbose_name="Date de création",
+    )
 
     class Meta:
-        verbose_name = "Journal Transmission eTVA"
-        verbose_name_plural = "Journaux Transmissions eTVA"
-        ordering = ['-transmitted_at']
+        db_table = "api_transaction"
+        managed = False
+        verbose_name = "Transaction API eTVA"
+        verbose_name_plural = "Transactions API eTVA"
+        ordering = ["-created_at"]
 
     def __str__(self):
-        doc_str = f"Facture {self.invoice.number}" if self.invoice else f"Avoir {self.credit_note.number}" if self.credit_note else "Document"
-        return f"eTVA [{self.environment}] {doc_str} -> {self.status}"
+        return (
+            f"{self.method} {self.endpoint} - "
+            f"{self.status}"
+        )

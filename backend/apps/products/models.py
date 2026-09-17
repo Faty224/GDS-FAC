@@ -1,37 +1,74 @@
-from django.db import models
+﻿from django.db import models
+
 
 class ProductType(models.TextChoices):
-    PRODUIT = 'PRODUIT', 'Produit'
-    SERVICE = 'SERVICE', 'Service'
+    PRODUIT = "PRODUIT", "Produit"
+    SERVICE = "SERVICE", "Service"
+
+
+class ProductStatus(models.TextChoices):
+    ACTIF = "ACTIF", "Actif"
+    INACTIF = "INACTIF", "Inactif"
+
 
 class Product(models.Model):
+    id = models.BigAutoField(primary_key=True)
+
     company = models.ForeignKey(
-        'companies.Company',
-        on_delete=models.CASCADE,
-        related_name='products',
-        help_text="Entreprise propriétaire du produit/service."
+        "companies.Company",
+        db_column="entreprise_id",
+        on_delete=models.RESTRICT,
+        related_name="products",
+        verbose_name="Entreprise",
     )
-    reference = models.CharField(max_length=50, verbose_name="Référence")
-    designation = models.CharField(max_length=255, verbose_name="Désignation")
-    description = models.TextField(blank=True, default='', verbose_name="Description")
+
+    reference = models.CharField(
+        max_length=100,
+        verbose_name="Référence",
+    )
+
+    designation = models.CharField(
+        max_length=255,
+        verbose_name="Désignation",
+    )
+
     category = models.CharField(
-        max_length=20,
+        max_length=30,
+        db_column="type",
         choices=ProductType.choices,
-        default=ProductType.SERVICE,
-        verbose_name="Type / Catégorie"
+        default=ProductType.PRODUIT,
+        verbose_name="Type",
     )
-    unit_price = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Prix unitaire HT")
-    vat_rate = models.DecimalField(max_digits=5, decimal_places=2, default=18.00, verbose_name="Taux TVA (%)")
-    unit = models.CharField(max_length=20, default='UNITE', verbose_name="Unité de mesure")
-    is_active = models.BooleanField(default=True, verbose_name="Actif")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+
+    unit_price = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        db_column="prix_unitaire",
+        verbose_name="Prix unitaire HT",
+    )
+
+    vat_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        db_column="taux_tva",
+        default=18.00,
+        verbose_name="Taux TVA (%)",
+    )
+
+    status = models.CharField(
+        max_length=20,
+        default="ACTIF",
+        choices=ProductStatus.choices,
+        verbose_name="Statut",
+    )
 
     class Meta:
+        db_table = "produit"
+        managed = False
         verbose_name = "Produit / Service"
         verbose_name_plural = "Produits & Services"
-        unique_together = ('company', 'reference')
-        ordering = ['reference', 'designation']
+        constraints = []
+        ordering = ["reference", "designation"]
 
     def __str__(self):
-        return f"[{self.reference}] {self.designation} ({self.unit_price} GNF HT)"
+        return f"[{self.reference}] {self.designation}"
