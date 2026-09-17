@@ -29,6 +29,8 @@ import type {
   Role,
   User,
 } from "./types";
+import { IS_DEMO_MODE, getAccessToken, setAccessToken } from "@/services/api";
+import { authService } from "@/services/resources.service";
 
 /**
  * Couche d'état applicative.
@@ -125,20 +127,39 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [isReady, setReady] = useState(false);
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) setState({ ...initialState, ...(JSON.parse(raw) as State) });
-      const session = window.localStorage.getItem(SESSION_KEY);
-      if (session) setCurrentUser(JSON.parse(session) as User);
-    } catch {
-      /* état corrompu : on repart des données de démonstration */
+    async function init() {
+      if (!IS_DEMO_MODE) {
+        const token = getAccessToken();
+        if (token) {
+          try {
+            const me = await authService.me();
+            setCurrentUser(me);
+            window.localStorage.setItem(SESSION_KEY, JSON.stringify(me));
+          } catch {
+            setAccessToken(null);
+            setCurrentUser(null);
+          }
+        }
+      } else {
+        try {
+          const raw = window.localStorage.getItem(STORAGE_KEY);
+          if (raw) setState({ ...initialState, ...(JSON.parse(raw) as State) });
+          const session = window.localStorage.getItem(SESSION_KEY);
+          if (session) setCurrentUser(JSON.parse(session) as User);
+        } catch {
+          /* état corrompu : on repart des données de démonstration */
+        }
+      }
+      setReady(true);
     }
-    setReady(true);
+    init();
   }, []);
 
   useEffect(() => {
     if (!isReady) return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (IS_DEMO_MODE) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
   }, [state, isReady]);
 
   const logAudit = useCallback(
@@ -163,9 +184,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      await new Promise((r) => setTimeout(r, 500));
+      if (!IS_DEMO_MODE) {
+        try {
+          const res = await authService.login(email, password);
+          const token = res.access || res.token;
+          if (token) setAccessToken(token);
+          const user = res.user || (await authService.me());
+          setCurrentUser(user);
+          window.localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+          return user;
+        } catch (err: any) {
+          throw new Error(
+            err?.message || err?.detail || "Identifiants invalides ou serveur indisponible.",
+          );
+        }
+      }
       const user = state.users.find(
-        (u) => u.email.toLowerCase() === email.trim().toLowerCase() && u.is_active,
+        (u) =>
+          (u.email.toLowerCase() === email.trim().toLowerCase() || u.username === email.trim()) &&
+          u.is_active,
       );
       if (!user || password.length < 4) {
         throw new Error("Identifiants invalides. Vérifiez votre email et votre mot de passe.");
@@ -178,6 +215,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(() => {
+    if (!IS_DEMO_MODE) {
+      authService.logout().catch(() => {});
+      setAccessToken(null);
+    }
     setCurrentUser(null);
     window.localStorage.removeItem(SESSION_KEY);
   }, []);

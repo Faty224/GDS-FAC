@@ -4,6 +4,7 @@ export type Role = "admin" | "facturier" | "consultation";
 
 export interface User {
   id: string;
+  username?: string;
   full_name: string;
   email: string;
   role: Role;
