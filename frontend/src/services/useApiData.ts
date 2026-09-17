@@ -39,7 +39,6 @@ function useApiList<T>(
     setError(null);
     try {
       const result = await fetcher();
-      // Handle paginated DRF response ({ results: [], count: N }) or plain array
       const list = Array.isArray(result) ? result : (result as any).results ?? [];
       setData(list);
     } catch (e: any) {
@@ -47,38 +46,41 @@ function useApiList<T>(
     } finally {
       setLoading(false);
     }
-  }, [fetcher]);
+  }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, []); // Run once on mount
+
   return { data, loading, error, reload: load };
 }
 
 export function useCustomers(fallback: Customer[] = []) {
-  return useApiList<Customer>(() => customersService.list(), fallback);
+  return useApiList<Customer>(customersService.list, fallback);
 }
 
 export function useProducts(fallback: Product[] = []) {
-  return useApiList<Product>(() => productsService.list(), fallback);
+  return useApiList<Product>(productsService.list, fallback);
 }
 
 export function useBillingSettings(fallback: BillingSetting[] = []) {
-  return useApiList<BillingSetting>(() => billingSettingsService.list(), fallback);
+  return useApiList<BillingSetting>(billingSettingsService.list, fallback);
 }
 
 export function useInvoices(fallback: Invoice[] = []) {
-  return useApiList<Invoice>(() => invoicesService.list(), fallback);
+  return useApiList<Invoice>(invoicesService.list, fallback);
 }
 
 export function useCreditNotes(fallback: Invoice[] = []) {
-  return useApiList<Invoice>(() => creditNotesService.list(), fallback);
+  return useApiList<Invoice>(creditNotesService.list, fallback);
 }
 
 export function useAuditLogs(fallback: any[] = []) {
-  return useApiList(() => auditService.list(), fallback);
+  return useApiList(auditService.list, fallback);
 }
 
 export function useUsers(fallback: any[] = []) {
-  return useApiList(() => usersService.list(), fallback);
+  return useApiList(usersService.list, fallback);
 }
 
 export function useCompany(fallback?: Company) {
@@ -100,7 +102,7 @@ export function useCompany(fallback?: Company) {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, []);
   return { data, loading, error, reload: load };
 }
 
@@ -123,6 +125,6 @@ export function useDashboardStats(fallback: any = {}) {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, []);
   return { data, loading, error, reload: load };
 }
