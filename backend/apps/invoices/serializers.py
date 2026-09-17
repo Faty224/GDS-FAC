@@ -7,37 +7,47 @@ class InvoiceItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = InvoiceItem
         fields = (
-            'id', 'product', 'designation', 'description', 'quantity',
+            'id', 'product', 'designation', 'quantity',
             'unit_price', 'vat_rate', 'line_total_ht', 'line_vat_amount', 'line_total_ttc'
         )
         read_only_fields = ('id', 'line_total_ht', 'line_vat_amount', 'line_total_ttc')
 
 class InvoiceSerializer(serializers.ModelSerializer):
-    items = InvoiceItemSerializer(many=True)
+    items = InvoiceItemSerializer(many=True, required=False)
     customer_detail = CustomerSerializer(source='customer', read_only=True)
+    due_date = serializers.SerializerMethodField()
+    etva_status = serializers.SerializerMethodField()
+    document_type = serializers.SerializerMethodField()
 
     class Meta:
         model = Invoice
         fields = (
-            'id', 'company', 'number', 'customer', 'customer_detail', 'billing_settings',
-            'date', 'due_date', 'status', 'etva_status', 'total_ht', 'total_tva', 'total_ttc',
-            'legal_mentions', 'payment_conditions', 'payment_instructions', 'notes',
-            'created_by', 'validated_at', 'created_at', 'updated_at', 'items'
+            'id', 'company', 'number', 'customer', 'customer_detail',
+            'date', 'due_date', 'status', 'etva_status', 'document_type',
+            'total_ht', 'total_tva', 'total_ttc',
+            'created_at', 'items'
         )
         read_only_fields = (
-            'id', 'company', 'number', 'status', 'etva_status', 'total_ht', 'total_tva',
-            'total_ttc', 'created_by', 'validated_at', 'created_at', 'updated_at'
+            'id', 'company', 'number', 'status', 'total_ht', 'total_tva',
+            'total_ttc', 'created_at'
         )
+
+    def get_due_date(self, obj):
+        return obj.date.strftime('%Y-%m-%d') if obj.date else None
+
+    def get_etva_status(self, obj):
+        return "non_transmis"
+
+    def get_document_type(self, obj):
+        return "facture"
 
     def create(self, validated_data):
         items_data = validated_data.pop('items', [])
         request = self.context.get('request')
         user = request.user if request else None
 
-        if user and user.company:
+        if user and hasattr(user, 'company') and user.company:
             validated_data['company'] = user.company
-        if user:
-            validated_data['created_by'] = user
 
         invoice = Invoice.objects.create(**validated_data)
 
