@@ -165,33 +165,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     async function init() {
-      if (!IS_DEMO_MODE) {
-        const token = getAccessToken();
-        if (token) {
-          try {
-            const rawMe = await authService.me();
-            const me = normalizeUser(rawMe);
-            setCurrentUser(me);
-            window.localStorage.setItem(SESSION_KEY, JSON.stringify(me));
-          } catch (e) {
-            // Backend offline or token expired/invalid: purge session completely
-            setAccessToken(null);
-            setCurrentUser(null);
-            window.localStorage.removeItem(SESSION_KEY);
-          }
-        } else {
+      const token = getAccessToken();
+      if (token) {
+        try {
+          const rawMe = await authService.me();
+          const me = normalizeUser(rawMe);
+          setCurrentUser(me);
+          window.localStorage.setItem(SESSION_KEY, JSON.stringify(me));
+        } catch (e) {
+          // Serveur backend hors-ligne ou jeton expiré -> purge totale de la session
+          setAccessToken(null);
           setCurrentUser(null);
           window.localStorage.removeItem(SESSION_KEY);
         }
       } else {
-        try {
-          const raw = window.localStorage.getItem(STORAGE_KEY);
-          if (raw) setState({ ...initialState, ...(JSON.parse(raw) as State) });
-          const session = window.localStorage.getItem(SESSION_KEY);
-          if (session) setCurrentUser(normalizeUser(JSON.parse(session)));
-        } catch {
-          /* état corrompu : on repart des données de démonstration */
-        }
+        setCurrentUser(null);
+        window.localStorage.removeItem(SESSION_KEY);
       }
       setReady(true);
     }
@@ -227,41 +216,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      if (!IS_DEMO_MODE) {
-        try {
-          const res = await authService.login(email, password);
-          const token = res.access || res.token;
-          if (token) setAccessToken(token);
-          const rawUser = res.user || (await authService.me());
-          const user = normalizeUser(rawUser);
-          setCurrentUser(user);
-          window.localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-          return user;
-        } catch (err: any) {
-          const errorMsg =
-            err?.response?.data?.detail ||
-            err?.response?.data?.non_field_errors?.[0] ||
-            err?.response?.data?.message ||
-            err?.message ||
-            "Identifiants invalides ou serveur indisponible.";
-          throw new Error(errorMsg);
-        }
+      try {
+        const res = await authService.login(email, password);
+        const token = res.access || res.token;
+        if (token) setAccessToken(token);
+        const rawUser = res.user || (await authService.me());
+        const user = normalizeUser(rawUser);
+        setCurrentUser(user);
+        window.localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+        return user;
+      } catch (err: any) {
+        const errorMsg =
+          err?.response?.data?.detail ||
+          err?.response?.data?.non_field_errors?.[0] ||
+          err?.response?.data?.message ||
+          err?.message ||
+          "Impossible de contacter le serveur Django (http://127.0.0.1:8000). Veuillez lancer 'python manage.py runserver 8000'.";
+        throw new Error(errorMsg);
       }
-      const user = state.users.find(
-        (u) =>
-          (u.email.toLowerCase() === email.trim().toLowerCase() ||
-            u.username?.toLowerCase() === email.trim().toLowerCase()) &&
-          u.is_active,
-      );
-      if (!user || password.length < 4) {
-        throw new Error("Identifiants invalides. Vérifiez votre email et votre mot de passe.");
-      }
-      const normUser = normalizeUser(user);
-      setCurrentUser(normUser);
-      window.localStorage.setItem(SESSION_KEY, JSON.stringify(normUser));
-      return normUser;
     },
-    [state.users],
+    [],
   );
 
   const logout = useCallback(() => {
