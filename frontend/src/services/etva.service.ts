@@ -54,7 +54,7 @@ export async function transmitInvoice(invoice: Invoice): Promise<TransmissionRes
     id: uid("tr"),
     invoice_id: invoice.id,
     invoice_reference: invoice.reference,
-    document_type: invoice.document_type,
+    document_type: invoice.document_type === "avoir" ? "avoir" : "facture",
     sent_at,
     status: accepted ? "accepte" : "rejete",
     dgi_reference: accepted ? `DEMO-REF-${Math.floor(Math.random() * 900000 + 100000)}` : null,

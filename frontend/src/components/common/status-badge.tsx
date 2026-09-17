@@ -60,3 +60,27 @@ export function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
 export function EtvaStatusBadge({ status }: { status: EtvaStatus }) {
   return <Pill {...ETVA_STATUS[status]} />;
 }
+
+export function PaymentStatusBadge({
+  status = "non_payee",
+  dueDate,
+}: {
+  status?: "non_payee" | "partiellement_payee" | "payee";
+  dueDate?: string;
+}) {
+  if (status === "payee") {
+    return <Pill label="Payée" className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300" />;
+  }
+
+  if (status === "partiellement_payee") {
+    return <Pill label="Partielle" className="bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300" />;
+  }
+
+  // Check overdue
+  const isOverdue = dueDate && new Date(dueDate) < new Date();
+  if (isOverdue) {
+    return <Pill label="En retard" className="bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 font-semibold" />;
+  }
+
+  return <Pill label="Non payée" className="bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300" />;
+}

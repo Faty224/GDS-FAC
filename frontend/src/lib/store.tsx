@@ -24,6 +24,7 @@ import type {
   Customer,
   EtvaTransmission,
   Invoice,
+  PaymentRecord,
   Product,
   Role,
   User,
@@ -50,6 +51,7 @@ interface State {
   invoices: Invoice[];
   transmissions: EtvaTransmission[];
   audit: AuditEntry[];
+  payments: PaymentRecord[];
 }
 
 const initialState: State = {
@@ -61,6 +63,7 @@ const initialState: State = {
   invoices: demoInvoices,
   transmissions: demoTransmissions,
   audit: demoAudit,
+  payments: [],
 };
 
 export const uid = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
@@ -107,6 +110,7 @@ interface StoreValue extends State {
   deleteInvoice: (id: string) => void;
   validateInvoice: (id: string) => void;
   registerTransmission: (transmission: EtvaTransmission, invoicePatch: Partial<Invoice>) => void;
+  registerPayment: (payment: PaymentRecord, totalTtc: number) => void;
   saveUser: (user: User) => void;
   deleteUser: (id: string) => void;
   logAudit: (action: string, target: string, result?: AuditEntry["result"]) => void;
@@ -251,6 +255,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               : i,
           ),
         })),
+      registerPayment: (payment: PaymentRecord, totalTtc: number) =>
+        setState((s) => {
+          const newPayments = [payment, ...s.payments];
+          const invoicePayments = newPayments.filter((p) => p.invoice_id === payment.invoice_id);
+          const totalPaid = invoicePayments.reduce((acc, curr) => acc + curr.amount, 0);
+
+          let paymentStatus: "non_payee" | "partiellement_payee" | "payee" = "non_payee";
+          if (totalPaid >= totalTtc) {
+            paymentStatus = "payee";
+          } else if (totalPaid > 0) {
+            paymentStatus = "partiellement_payee";
+          }
+
+          const updatedInvoices = s.invoices.map((inv) =>
+            inv.id === payment.invoice_id
+              ? {
+                  ...inv,
+                  paid_amount: totalPaid,
+                  payment_status: paymentStatus,
+                  history: [
+                    ...inv.history,
+                    {
+                      id: uid("h"),
+                      label: `Enregistrement règlement (${payment.method.toUpperCase()}) — ${payment.amount} GNF`,
+                      at: payment.payment_date,
+                      user: currentUser?.full_name ?? "Système",
+                    },
+                  ],
+                }
+              : inv,
+          );
+
+          return {
+            ...s,
+            payments: newPayments,
+            invoices: updatedInvoices,
+          };
+        }),
       saveUser: (user) => setState((s) => ({ ...s, users: upsert(s.users, user) })),
       deleteUser: (id) => setState((s) => ({ ...s, users: s.users.filter((u) => u.id !== id) })),
       resetDemoData: () => setState(initialState),

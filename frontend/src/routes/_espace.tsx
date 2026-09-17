@@ -12,6 +12,7 @@ import {
   ScrollText,
   Menu,
   LogOut,
+  FileCode,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -24,6 +25,7 @@ export const Route = createFileRoute("/_espace")({
 
 const NAV: { to: string; label: string; icon: typeof BarChart3; permission?: Permission }[] = [
   { to: "/tableau-de-bord", label: "Tableau de bord", icon: BarChart3 },
+  { to: "/devis", label: "Devis & Proforma", icon: FileCode },
   { to: "/clients", label: "Clients", icon: Users },
   { to: "/produits", label: "Produits & services", icon: Package },
   { to: "/parametrage", label: "Paramétrage", icon: Settings2 },

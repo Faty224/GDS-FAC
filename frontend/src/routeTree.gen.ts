@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as EspaceRouteImport } from './routes/_espace'
 import { Route as EspaceAvoirsRouteImport } from './routes/_espace.avoirs'
 import { Route as EspaceClientsRouteImport } from './routes/_espace.clients'
+import { Route as EspaceDevisRouteImport } from './routes/_espace.devis'
 import { Route as EspaceEtvaRouteImport } from './routes/_espace.etva'
 import { Route as EspaceFacturesRouteImport } from './routes/_espace.factures'
 import { Route as EspaceJournauxRouteImport } from './routes/_espace.journaux'
@@ -38,6 +39,11 @@ const EspaceAvoirsRoute = EspaceAvoirsRouteImport.update({
 const EspaceClientsRoute = EspaceClientsRouteImport.update({
   id: '/clients',
   path: '/clients',
+  getParentRoute: () => EspaceRoute,
+} as any)
+const EspaceDevisRoute = EspaceDevisRouteImport.update({
+  id: '/devis',
+  path: '/devis',
   getParentRoute: () => EspaceRoute,
 } as any)
 const EspaceEtvaRoute = EspaceEtvaRouteImport.update({
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/avoirs': typeof EspaceAvoirsRoute
   '/clients': typeof EspaceClientsRoute
+  '/devis': typeof EspaceDevisRoute
   '/etva': typeof EspaceEtvaRoute
   '/factures': typeof EspaceFacturesRoute
   '/journaux': typeof EspaceJournauxRoute
@@ -92,6 +99,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/avoirs': typeof EspaceAvoirsRoute
   '/clients': typeof EspaceClientsRoute
+  '/devis': typeof EspaceDevisRoute
   '/etva': typeof EspaceEtvaRoute
   '/factures': typeof EspaceFacturesRoute
   '/journaux': typeof EspaceJournauxRoute
@@ -106,6 +114,7 @@ export interface FileRoutesById {
   '/_espace': typeof EspaceRouteWithChildren
   '/_espace/avoirs': typeof EspaceAvoirsRoute
   '/_espace/clients': typeof EspaceClientsRoute
+  '/_espace/devis': typeof EspaceDevisRoute
   '/_espace/etva': typeof EspaceEtvaRoute
   '/_espace/factures': typeof EspaceFacturesRoute
   '/_espace/journaux': typeof EspaceJournauxRoute
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
     | '/'
     | '/avoirs'
     | '/clients'
+    | '/devis'
     | '/etva'
     | '/factures'
     | '/journaux'
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
     | '/'
     | '/avoirs'
     | '/clients'
+    | '/devis'
     | '/etva'
     | '/factures'
     | '/journaux'
@@ -145,6 +156,7 @@ export interface FileRouteTypes {
     | '/_espace'
     | '/_espace/avoirs'
     | '/_espace/clients'
+    | '/_espace/devis'
     | '/_espace/etva'
     | '/_espace/factures'
     | '/_espace/journaux'
@@ -187,6 +199,13 @@ declare module '@tanstack/react-router' {
       path: '/clients'
       fullPath: '/clients'
       preLoaderRoute: typeof EspaceClientsRouteImport
+      parentRoute: typeof EspaceRoute
+    }
+    '/_espace/devis': {
+      id: '/_espace/devis'
+      path: '/devis'
+      fullPath: '/devis'
+      preLoaderRoute: typeof EspaceDevisRouteImport
       parentRoute: typeof EspaceRoute
     }
     '/_espace/etva': {
@@ -244,6 +263,7 @@ declare module '@tanstack/react-router' {
 interface EspaceRouteChildren {
   EspaceAvoirsRoute: typeof EspaceAvoirsRoute
   EspaceClientsRoute: typeof EspaceClientsRoute
+  EspaceDevisRoute: typeof EspaceDevisRoute
   EspaceEtvaRoute: typeof EspaceEtvaRoute
   EspaceFacturesRoute: typeof EspaceFacturesRoute
   EspaceJournauxRoute: typeof EspaceJournauxRoute
@@ -256,6 +276,7 @@ interface EspaceRouteChildren {
 const EspaceRouteChildren: EspaceRouteChildren = {
   EspaceAvoirsRoute: EspaceAvoirsRoute,
   EspaceClientsRoute: EspaceClientsRoute,
+  EspaceDevisRoute: EspaceDevisRoute,
   EspaceEtvaRoute: EspaceEtvaRoute,
   EspaceFacturesRoute: EspaceFacturesRoute,
   EspaceJournauxRoute: EspaceJournauxRoute,
