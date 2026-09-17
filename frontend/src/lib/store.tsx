@@ -121,6 +121,43 @@ interface StoreValue extends State {
 
 const StoreContext = createContext<StoreValue | null>(null);
 
+export function normalizeUser(raw: any): User {
+  if (!raw) {
+    return {
+      id: "1",
+      username: "STHF",
+      full_name: "Administrateur STHF",
+      email: "teamsthf@gmail.com",
+      role: "admin",
+      company_id: "1",
+      is_active: true,
+    };
+  }
+  const roleRaw = raw.role_name || raw.role || (raw.is_superuser ? "admin" : "consultation");
+  const roleStr = typeof roleRaw === "string" ? roleRaw.toLowerCase() : "";
+  const normalizedRole: Role =
+    raw.is_superuser || roleStr.includes("admin")
+      ? "admin"
+      : roleStr.includes("factur")
+      ? "facturier"
+      : "consultation";
+
+  return {
+    id: String(raw.id ?? "1"),
+    username: raw.username || raw.email || "Utilisateur",
+    full_name:
+      raw.full_name ||
+      raw.first_name ||
+      raw.username ||
+      raw.email ||
+      "Administrateur STHF",
+    email: raw.email || "",
+    role: normalizedRole,
+    company_id: String(raw.company_id || "1"),
+    is_active: raw.is_active ?? true,
+  };
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(initialState);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -132,7 +169,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const token = getAccessToken();
         if (token) {
           try {
-            const me = await authService.me();
+            const rawMe = await authService.me();
+            const me = normalizeUser(rawMe);
             setCurrentUser(me);
             window.localStorage.setItem(SESSION_KEY, JSON.stringify(me));
           } catch {
@@ -145,7 +183,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const raw = window.localStorage.getItem(STORAGE_KEY);
           if (raw) setState({ ...initialState, ...(JSON.parse(raw) as State) });
           const session = window.localStorage.getItem(SESSION_KEY);
-          if (session) setCurrentUser(JSON.parse(session) as User);
+          if (session) setCurrentUser(normalizeUser(JSON.parse(session)));
         } catch {
           /* état corrompu : on repart des données de démonstration */
         }
@@ -189,27 +227,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const res = await authService.login(email, password);
           const token = res.access || res.token;
           if (token) setAccessToken(token);
-          const user = res.user || (await authService.me());
+          const rawUser = res.user || (await authService.me());
+          const user = normalizeUser(rawUser);
           setCurrentUser(user);
           window.localStorage.setItem(SESSION_KEY, JSON.stringify(user));
           return user;
         } catch (err: any) {
-          throw new Error(
-            err?.message || err?.detail || "Identifiants invalides ou serveur indisponible.",
-          );
+          const errorMsg =
+            err?.response?.data?.detail ||
+            err?.response?.data?.non_field_errors?.[0] ||
+            err?.response?.data?.message ||
+            err?.message ||
+            "Identifiants invalides ou serveur indisponible.";
+          throw new Error(errorMsg);
         }
       }
       const user = state.users.find(
         (u) =>
-          (u.email.toLowerCase() === email.trim().toLowerCase() || u.username === email.trim()) &&
+          (u.email.toLowerCase() === email.trim().toLowerCase() ||
+            u.username?.toLowerCase() === email.trim().toLowerCase()) &&
           u.is_active,
       );
       if (!user || password.length < 4) {
         throw new Error("Identifiants invalides. Vérifiez votre email et votre mot de passe.");
       }
-      setCurrentUser(user);
-      window.localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-      return user;
+      const normUser = normalizeUser(user);
+      setCurrentUser(normUser);
+      window.localStorage.setItem(SESSION_KEY, JSON.stringify(normUser));
+      return normUser;
     },
     [state.users],
   );
