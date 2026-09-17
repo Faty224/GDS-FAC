@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { ROLE_LABELS, useStore, type Permission } from "@/lib/store";
 import { IS_DEMO_MODE } from "@/services/api";
+import { authService } from "@/services/resources.service";
 
 export const Route = createFileRoute("/_espace")({
   component: EspaceLayout,
@@ -64,6 +65,15 @@ function EspaceLayout() {
   useEffect(() => {
     if (isReady && !currentUser) navigate({ to: "/", replace: true });
   }, [isReady, currentUser, navigate]);
+
+  useEffect(() => {
+    if (!IS_DEMO_MODE && currentUser) {
+      authService.me().catch(() => {
+        logout();
+        navigate({ to: "/", replace: true });
+      });
+    }
+  }, [currentUser, logout, navigate]);
 
   if (!isReady || !currentUser) {
     return (
