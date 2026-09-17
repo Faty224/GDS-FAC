@@ -30,8 +30,8 @@ export const Route = createFileRoute("/")({
 function LoginPage() {
   const { login, currentUser, isReady, logAudit } = useStore();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("admin@gds.gn");
-  const [password, setPassword] = useState("demo1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -133,16 +133,16 @@ function LoginPage() {
 
             <form onSubmit={handleSubmit} className="space-y-5 mt-4">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-foreground font-semibold">Adresse email</Label>
+                <Label htmlFor="email" className="text-foreground font-semibold">Identifiant ou Adresse email</Label>
                 <Input
                   id="email"
-                  type="email"
-                  autoComplete="email"
+                  type="text"
+                  autoComplete="username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   className="h-12 bg-muted/40 hover:bg-muted/60 focus:bg-background transition-colors text-[15px]"
-                  placeholder="nom@entreprise.com"
+                  placeholder="STHF ou admin@gds.gn"
                 />
               </div>
               
