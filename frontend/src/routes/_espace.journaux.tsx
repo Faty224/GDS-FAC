@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useStore } from "@/lib/store";
+import { useAuditLogs } from "@/services/useApiData";
 
 export const Route = createFileRoute("/_espace/journaux")({
   head: () => ({
@@ -41,8 +42,9 @@ export const Route = createFileRoute("/_espace/journaux")({
 });
 
 function AuditLogsPage() {
-  const { audit } = useStore();
-  const auditLogs = audit ?? [];
+  const store = useStore();
+  const { data: apiLogs, loading } = useAuditLogs([]);
+  const auditLogs = apiLogs.length > 0 ? apiLogs : store.audit ?? [];
 
   const [search, setSearch] = useState("");
   const [actionFilter, setActionFilter] = useState<string>("all");

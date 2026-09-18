@@ -1,0 +1,128 @@
+Model: Role (Table: role, Managed: False)
+   - id (BigAutoField) [db_column: id, null: False]
+   - nom (CharField) [db_column: nom, null: False]
+   - description (TextField) [db_column: description, null: True]
+   - created_at (DateTimeField) [db_column: created_at, null: False]
+
+Model: User (Table: users, Managed: False)
+   - id (BigAutoField) [db_column: id, null: False]
+   - username (CharField) [db_column: username, null: False]
+   - email (CharField) [db_column: email, null: True]
+   - password (CharField) [db_column: password_hash, null: False]
+   - role (ForeignKey) [db_column: role_id, null: False]
+   - company (ForeignKey) [db_column: entreprise_id, null: True]
+   - is_active (BooleanField) [db_column: is_active, null: False]
+   - is_staff (BooleanField) [db_column: is_staff, null: False]
+   - is_superuser (BooleanField) [db_column: is_superuser, null: False]
+   - last_login (DateTimeField) [db_column: last_login, null: True]
+   - date_joined (DateTimeField) [db_column: date_joined, null: False]
+   - created_at (DateTimeField) [db_column: created_at, null: False]
+   - phone (CharField) [db_column: phone, null: False]
+   - job_title (CharField) [db_column: job_title, null: False]
+
+Model: Company (Table: entreprise, Managed: False)
+   - id (BigAutoField) [db_column: id, null: False]
+   - raison_sociale (CharField) [db_column: nom, null: False]
+   - nif (CharField) [db_column: nif, null: True]
+   - address (TextField) [db_column: adresse, null: True]
+   - phone (CharField) [db_column: telephone, null: True]
+   - email (CharField) [db_column: email, null: True]
+   - logo_url (TextField) [db_column: logo, null: True]
+   - created_at (DateTimeField) [db_column: created_at, null: False]
+
+Model: Customer (Table: client, Managed: False)
+   - id (BigAutoField) [db_column: id, null: False]
+   - company (ForeignKey) [db_column: entreprise_id, null: False]
+   - name (CharField) [db_column: nom, null: False]
+   - nifp (CharField) [db_column: nif, null: True]
+   - address (TextField) [db_column: adresse, null: True]
+   - phone (CharField) [db_column: telephone, null: True]
+   - email (CharField) [db_column: email, null: True]
+   - status (CharField) [db_column: status, null: False]
+
+Model: Product (Table: produit, Managed: False)
+   - id (BigAutoField) [db_column: id, null: False]
+   - company (ForeignKey) [db_column: entreprise_id, null: False]
+   - reference (CharField) [db_column: reference, null: False]
+   - designation (CharField) [db_column: designation, null: False]
+   - category (CharField) [db_column: type, null: False]
+   - unit_price (DecimalField) [db_column: prix_unitaire, null: False]
+   - vat_rate (DecimalField) [db_column: taux_tva, null: False]
+   - status (CharField) [db_column: status, null: False]
+
+Model: BillingSettings (Table: parametrage_facturation, Managed: False)
+   - id (BigAutoField) [db_column: id, null: False]
+   - company (OneToOneField) [db_column: entreprise_id, null: False]
+   - default_currency (CharField) [db_column: devise, null: False]
+   - default_vat_rate (DecimalField) [db_column: taux_tva_defaut, null: False]
+   - payment_conditions (TextField) [db_column: conditions_paiement, null: True]
+   - prefix (CharField) [db_column: prefixe_facture, null: False]
+   - created_at (DateTimeField) [db_column: created_at, null: False]
+
+Model: Invoice (Table: facture, Managed: False)
+   - id (BigAutoField) [db_column: id, null: False]
+   - company (ForeignKey) [db_column: entreprise_id, null: False]
+   - customer (ForeignKey) [db_column: client_id, null: False]
+   - number (CharField) [db_column: numero, null: False]
+   - date (DateField) [db_column: date_facture, null: False]
+   - total_ht (DecimalField) [db_column: total_ht, null: False]
+   - total_tva (DecimalField) [db_column: total_tva, null: False]
+   - total_ttc (DecimalField) [db_column: total_ttc, null: False]
+   - status (CharField) [db_column: statut, null: False]
+   - created_at (DateTimeField) [db_column: created_at, null: False]
+
+Model: InvoiceItem (Table: ligne_facture, Managed: False)
+   - id (BigAutoField) [db_column: id, null: False]
+   - invoice (ForeignKey) [db_column: facture_id, null: False]
+   - product (ForeignKey) [db_column: produit_id, null: False]
+   - designation (CharField) [db_column: designation, null: False]
+   - quantity (DecimalField) [db_column: quantite, null: False]
+   - unit_price (DecimalField) [db_column: prix_unitaire, null: False]
+   - vat_rate (DecimalField) [db_column: taux_tva, null: False]
+   - line_total_ht (DecimalField) [db_column: montant_ht, null: False]
+
+Model: CreditNote (Table: avoir, Managed: False)
+   - id (BigAutoField) [db_column: id, null: False]
+   - parent_invoice (ForeignKey) [db_column: facture_id, null: False]
+   - number (CharField) [db_column: numero, null: False]
+   - date (DateField) [db_column: date_avoir, null: False]
+   - total_ht (DecimalField) [db_column: total_ht, null: False]
+   - total_tva (DecimalField) [db_column: total_tva, null: False]
+   - total_ttc (DecimalField) [db_column: total_ttc, null: False]
+   - status (CharField) [db_column: statut, null: False]
+   - created_at (DateTimeField) [db_column: created_at, null: False]
+
+Model: CreditNoteItem (Table: ligne_avoir, Managed: False)
+   - id (BigAutoField) [db_column: id, null: False]
+   - credit_note (ForeignKey) [db_column: avoir_id, null: False]
+   - product (ForeignKey) [db_column: produit_id, null: False]
+   - designation (CharField) [db_column: designation, null: False]
+   - quantity (DecimalField) [db_column: quantite, null: False]
+   - unit_price (DecimalField) [db_column: prix_unitaire, null: False]
+   - line_total_ht (DecimalField) [db_column: montant_ht, null: False]
+
+Model: ETVATransmission (Table: api_transaction, Managed: False)
+   - id (BigAutoField) [db_column: id, null: False]
+   - invoice (ForeignKey) [db_column: facture_id, null: False]
+   - endpoint (CharField) [db_column: endpoint, null: False]
+   - method (CharField) [db_column: method, null: False]
+   - http_status (IntegerField) [db_column: http_status, null: True]
+   - request_id (CharField) [db_column: request_id, null: True]
+   - response_reference (CharField) [db_column: response_reference, null: True]
+   - status (CharField) [db_column: status, null: False]
+   - error_code (CharField) [db_column: error_code, null: True]
+   - request_payload (JSONField) [db_column: request_payload, null: True]
+   - response_payload (JSONField) [db_column: response_payload, null: True]
+   - created_at (DateTimeField) [db_column: created_at, null: False]
+
+Model: AuditLog (Table: audit_log, Managed: False)
+   - id (BigAutoField) [db_column: id, null: False]
+   - user (ForeignKey) [db_column: user_id, null: True]
+   - action (CharField) [db_column: action, null: False]
+   - entity_name (CharField) [db_column: entity_name, null: True]
+   - entity_id (BigIntegerField) [db_column: entity_id, null: True]
+   - details (JSONField) [db_column: details, null: True]
+   - ip_address (GenericIPAddressField) [db_column: ip_address, null: True]
+   - user_agent (TextField) [db_column: user_agent, null: True]
+   - created_at (DateTimeField) [db_column: created_at, null: False]
+

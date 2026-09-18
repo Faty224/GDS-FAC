@@ -17,7 +17,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatGNF } from "@/lib/format";
 import { useStore } from "@/lib/store";
-import { IS_DEMO_MODE } from "@/services/api";
 import { productsService } from "@/services/resources.service";
 import { useProducts } from "@/services/useApiData";
 import type { Product, ProductKind } from "@/lib/types";
@@ -34,7 +33,7 @@ export const Route = createFileRoute("/_espace/produits")({
 
 function ProduitsPage() {
   const store = useStore();
-  const { data: products, loading, error, reload } = useProducts(IS_DEMO_MODE ? store.products : []);
+  const { data: products, loading, error, reload } = useProducts([]);
 
   const [search, setSearch] = useState("");
   const [kindFilter, setKindFilter] = useState<string>("all");
@@ -46,7 +45,7 @@ function ProduitsPage() {
   const [label, setLabel] = useState("");
   const [kind, setKind] = useState<ProductKind>("produit");
   const [unitPrice, setUnitPrice] = useState<number>(100000);
-  const [vatRate, setVatRate] = useState<number>(0.18);
+  const [vatRate, setVatRate] = useState<number>(18);
   const [unit, setUnit] = useState("U");
 
   const filteredProducts = products.filter((p) => {
@@ -59,14 +58,16 @@ function ProduitsPage() {
   function handleOpenCreate() {
     setEditingProduct(null);
     setReference(`REF-${String(products.length + 1).padStart(3, "0")}`);
-    setLabel(""); setKind("produit"); setUnitPrice(100000); setVatRate(0.18); setUnit("U");
+    setLabel(""); setKind("produit"); setUnitPrice(100000); setVatRate(18); setUnit("U");
     setOpenModal(true);
   }
 
   function handleOpenEdit(p: Product) {
     setEditingProduct(p);
+    const rawVat = Number(p.vat_rate || 18);
+    const normalizedVat = rawVat <= 1 ? rawVat * 100 : rawVat;
     setReference(p.reference || ""); setLabel(p.label); setKind(p.kind);
-    setUnitPrice(p.unit_price); setVatRate(p.vat_rate); setUnit(p.unit || "U");
+    setUnitPrice(p.unit_price); setVatRate(normalizedVat); setUnit(p.unit || "U");
     setOpenModal(true);
   }
 
@@ -79,14 +80,9 @@ function ProduitsPage() {
         reference: reference.trim(), label: label.trim(), kind,
         unit_price: Number(unitPrice), vat_rate: Number(vatRate), unit: unit.trim() || "U",
       };
-      if (IS_DEMO_MODE) {
-        const d: Product = { ...payload as any, id: editingProduct ? editingProduct.id : `prod-${Date.now()}`, company_id: store.company.id, is_active: editingProduct ? editingProduct.is_active : true };
-        store.saveProduct(d);
-      } else {
-        if (editingProduct) { await productsService.update(editingProduct.id, payload); }
-        else { await productsService.create(payload); }
-        reload();
-      }
+      if (editingProduct) { await productsService.update(editingProduct.id, payload); }
+      else { await productsService.create(payload); }
+      reload();
       store.logAudit(editingProduct ? "Modification Produit" : "Création Produit", label.trim());
       toast.success(`Article ${label.trim()} ${editingProduct ? "mis à jour" : "créé"} avec succès.`);
       setOpenModal(false);
@@ -99,8 +95,7 @@ function ProduitsPage() {
 
   const handleToggleActive = useCallback(async (p: Product) => {
     try {
-      if (IS_DEMO_MODE) { store.saveProduct({ ...p, is_active: !p.is_active }); }
-      else { await productsService.update(p.id, { is_active: !p.is_active }); reload(); }
+      await productsService.update(p.id, { is_active: !p.is_active }); reload();
       store.logAudit(!p.is_active ? "Activation Produit" : "Désactivation Produit", p.label);
       toast.success(`Article ${p.label} ${!p.is_active ? "activé" : "désactivé"}.`);
     } catch (e: any) { toast.error(e?.message ?? "Erreur."); }
@@ -108,8 +103,7 @@ function ProduitsPage() {
 
   const handleDelete = useCallback(async (p: Product) => {
     try {
-      if (IS_DEMO_MODE) { store.deleteProduct(p.id); }
-      else { await productsService.remove(p.id); reload(); }
+      await productsService.remove(p.id); reload();
       store.logAudit("Suppression Produit", p.label);
       toast.success(`Article ${p.label} supprimé.`);
     } catch (e: any) { toast.error(e?.message ?? "Erreur suppression."); }
@@ -125,7 +119,7 @@ function ProduitsPage() {
             <DialogTrigger asChild>
               <Button onClick={handleOpenCreate}><Plus className="mr-2 size-4" />Nouveau Produit / Service</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-6">
               <DialogHeader>
                 <DialogTitle>{editingProduct ? "Modifier l'article" : "Ajouter un nouvel article"}</DialogTitle>
                 <DialogDescription>Définissez la référence, la catégorie, le prix et le taux de TVA.</DialogDescription>
@@ -155,11 +149,11 @@ function ProduitsPage() {
                     <Input id="price" type="number" min="0" step="1000" value={unitPrice} onChange={e => setUnitPrice(parseFloat(e.target.value) || 0)} required />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="vat">Taux de TVA</Label>
+                    <Label htmlFor="vat">Taux de TVA (%)</Label>
                     <Select value={String(vatRate)} onValueChange={v => setVatRate(parseFloat(v))}>
                       <SelectTrigger id="vat"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="0.18">18% (Taux Standard Guinée)</SelectItem>
+                        <SelectItem value="18">18% (Taux Standard Guinée)</SelectItem>
                         <SelectItem value="0">0% (Exonéré / Export)</SelectItem>
                       </SelectContent>
                     </Select>
@@ -241,39 +235,42 @@ function ProduitsPage() {
                   </TableCell></TableRow>
                 ) : filteredProducts.length === 0 ? (
                   <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground text-sm">Aucun produit ou service trouvé.</TableCell></TableRow>
-                ) : filteredProducts.map(p => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-mono text-xs font-semibold">{p.reference}</TableCell>
-                    <TableCell className="font-medium text-foreground">{p.label}</TableCell>
-                    <TableCell>
-                      {p.kind === "produit"
-                        ? <Badge variant="secondary" className="bg-emerald-100 text-emerald-800"><Package className="mr-1 size-3" />Produit</Badge>
-                        : <Badge variant="secondary" className="bg-purple-100 text-purple-800"><Briefcase className="mr-1 size-3" />Service</Badge>}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">{formatGNF(p.unit_price)}</TableCell>
-                    <TableCell className="text-right font-mono text-xs">{(p.vat_rate * 100).toFixed(0)}%</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{p.unit}</TableCell>
-                    <TableCell>
-                      {p.is_active
-                        ? <Badge variant="outline" className="text-emerald-700 bg-emerald-50 border-emerald-300"><CheckCircle2 className="mr-1 size-3 text-emerald-600" />Actif</Badge>
-                        : <Badge variant="outline" className="text-rose-700 bg-rose-50 border-rose-300"><XCircle className="mr-1 size-3 text-rose-600" />Inactif</Badge>}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {store.can("manage_products") && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-8"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleOpenEdit(p)}><Edit className="mr-2 size-4 text-blue-600" />Modifier</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleToggleActive(p)}>
-                              {p.is_active ? <><XCircle className="mr-2 size-4 text-amber-600" />Désactiver</> : <><CheckCircle2 className="mr-2 size-4 text-emerald-600" />Activer</>}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDelete(p)} className="text-rose-600"><Trash2 className="mr-2 size-4" />Supprimer</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                ) : filteredProducts.map(p => {
+                  const displayVat = Number(p.vat_rate) <= 1 ? Number(p.vat_rate) * 100 : Number(p.vat_rate);
+                  return (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-mono text-xs font-semibold">{p.reference}</TableCell>
+                      <TableCell className="font-medium text-foreground">{p.label}</TableCell>
+                      <TableCell>
+                        {p.kind === "produit"
+                          ? <Badge variant="secondary" className="bg-emerald-100 text-emerald-800"><Package className="mr-1 size-3" />Produit</Badge>
+                          : <Badge variant="secondary" className="bg-purple-100 text-purple-800"><Briefcase className="mr-1 size-3" />Service</Badge>}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">{formatGNF(p.unit_price)}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{displayVat.toFixed(0)}%</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{p.unit}</TableCell>
+                      <TableCell>
+                        {p.is_active
+                          ? <Badge variant="outline" className="text-emerald-700 bg-emerald-50 border-emerald-300"><CheckCircle2 className="mr-1 size-3 text-emerald-600" />Actif</Badge>
+                          : <Badge variant="outline" className="text-rose-700 bg-rose-50 border-rose-300"><XCircle className="mr-1 size-3 text-rose-600" />Inactif</Badge>}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {store.can("manage_products") && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-8"><MoreVertical className="size-4" /></Button></DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleOpenEdit(p)}><Edit className="mr-2 size-4 text-blue-600" />Modifier</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleToggleActive(p)}>
+                                {p.is_active ? <><XCircle className="mr-2 size-4 text-amber-600" />Désactiver</> : <><CheckCircle2 className="mr-2 size-4 text-emerald-600" />Activer</>}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDelete(p)} className="text-rose-600"><Trash2 className="mr-2 size-4" />Supprimer</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

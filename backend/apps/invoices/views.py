@@ -21,7 +21,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        qs = Invoice.objects.select_related('customer', 'company', 'billing_settings').prefetch_related('items').all()
+        qs = Invoice.objects.select_related('customer', 'company').prefetch_related('items').all()
         if not user.is_superuser and user.company:
             qs = qs.filter(company=user.company)
 
@@ -37,7 +37,8 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         if instance.status != InvoiceStatus.DRAFT:
-            raise Response({'detail': 'Seules les factures au statut Brouillon peuvent être supprimées.'}, status=status.HTTP_400_BAD_REQUEST)
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'detail': 'Seules les factures au statut Brouillon peuvent être supprimées.'})
         instance.delete()
 
     @action(detail=True, methods=['post'])
@@ -52,7 +53,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             # Get or create billing settings to generate secure sequential number
-            billing_settings = invoice.billing_settings or BillingSettings.objects.filter(company=invoice.company, is_active=True).first()
+            billing_settings = BillingSettings.objects.filter(company=invoice.company, is_active=True).first()
             if not billing_settings:
                 billing_settings = BillingSettings.objects.create(
                     company=invoice.company,
@@ -66,9 +67,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             billing_settings.save(update_fields=['next_number'])
 
             invoice.number = official_number
-            invoice.billing_settings = billing_settings
             invoice.status = InvoiceStatus.VALIDATED
-            invoice.validated_at = timezone.now()
             invoice.recalculate_totals()
             invoice.save()
 

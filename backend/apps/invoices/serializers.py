@@ -49,9 +49,16 @@ class InvoiceSerializer(serializers.ModelSerializer):
         if user and hasattr(user, 'company') and user.company:
             validated_data['company'] = user.company
 
+        if not validated_data.get('number'):
+            import uuid
+            validated_data['number'] = f"DRAFT-{uuid.uuid4().hex[:8].upper()}"
+
         invoice = Invoice.objects.create(**validated_data)
 
         for item_data in items_data:
+            qty = item_data.get('quantity', 0)
+            price = item_data.get('unit_price', 0)
+            item_data['line_total_ht'] = qty * price
             InvoiceItem.objects.create(invoice=invoice, **item_data)
 
         invoice.recalculate_totals()
@@ -70,6 +77,9 @@ class InvoiceSerializer(serializers.ModelSerializer):
         if items_data is not None:
             instance.items.all().delete()
             for item_data in items_data:
+                qty = item_data.get('quantity', 0)
+                price = item_data.get('unit_price', 0)
+                item_data['line_total_ht'] = qty * price
                 InvoiceItem.objects.create(invoice=instance, **item_data)
 
         instance.recalculate_totals()

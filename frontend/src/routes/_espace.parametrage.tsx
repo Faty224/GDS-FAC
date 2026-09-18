@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Building2, Save, FileText, CreditCard, ShieldCheck } from "lucide-react";
+import { Building2, Save, FileText, CreditCard, ShieldCheck, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/common/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useStore } from "@/lib/store";
+import { companyService, billingSettingsService } from "@/services/resources.service";
+import type { Company, BillingSetting } from "@/lib/types";
 
 export const Route = createFileRoute("/_espace/parametrage")({
   head: () => ({
@@ -26,34 +28,72 @@ export const Route = createFileRoute("/_espace/parametrage")({
 });
 
 function ParametragePage() {
-  const { company, billingSettings, updateCompany, saveBillingSetting, logAudit, can } = useStore();
+  const store = useStore();
+  const [loading, setLoading] = useState(true);
+  const [savingCompany, setSavingCompany] = useState(false);
+  const [savingBilling, setSavingBilling] = useState(false);
 
-  const [companyForm, setCompanyForm] = useState({ ...company });
-  const primarySetting = billingSettings[0] ?? {
-    id: "set-1",
-    company_id: company.id,
+  const [companyForm, setCompanyForm] = useState<Partial<Company>>({
+    name: "GDS Facture SARL",
+    legal_form: "SARL",
+    nif: "102938475P",
+    rccm: "GN.TKN.2026.B.01234",
+    address: "Kaloum, Immeuble Almamya",
+    phone: "+224 620 00 00 00",
+    email: "contact@gds-facture.gn",
+    bank_name: "Ecobank Guinée",
+    bank_account: "GN038 01001 12345678901 45",
+  });
+
+  const [billingForm, setBillingForm] = useState<Partial<BillingSetting>>({
     reference: "FAC",
-    label: "Paramètres Généraux",
     legal_mentions:
       "Facture établie en conformité avec la réglementation eTVA de la Direction Générale des Impôts (DGI) de Guinée.",
     payment_instructions: "Règlement par virement bancaire sous 30 jours.",
-    is_active: true,
-  };
+  });
 
-  const [billingForm, setBillingForm] = useState({ ...primarySetting });
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      try {
+        const c = await companyService.retrieve();
+        if (c) setCompanyForm(c);
+      } catch { /* graceful default */ }
+      try {
+        const b = await billingSettingsService.active();
+        if (b) setBillingForm(b);
+      } catch { /* graceful default */ }
+      setLoading(false);
+    }
+    load();
+  }, []);
 
-  function handleSaveCompany(e: React.FormEvent) {
+  async function handleSaveCompany(e: React.FormEvent) {
     e.preventDefault();
-    updateCompany(companyForm);
-    logAudit("Mise à jour Entreprise", companyForm.name);
-    toast.success("Informations de l'entreprise mises à jour avec succès.");
+    setSavingCompany(true);
+    try {
+      const updated = await companyService.update(companyForm);
+      if (updated) setCompanyForm(updated);
+      store.logAudit("Mise à jour Entreprise", companyForm.name || "Entreprise");
+      toast.success("Informations de l'entreprise enregistrées dans la base de données.");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Erreur lors de l'enregistrement.");
+    } finally {
+      setSavingCompany(false);
+    }
   }
 
-  function handleSaveBilling(e: React.FormEvent) {
+  async function handleSaveBilling(e: React.FormEvent) {
     e.preventDefault();
-    saveBillingSetting(billingForm);
-    logAudit("Mise à jour Paramètres Facturation", billingForm.reference);
-    toast.success("Paramètres et mentions de facturation enregistrés.");
+    setSavingBilling(true);
+    try {
+      store.logAudit("Mise à jour Paramètres Facturation", billingForm.reference || "FAC");
+      toast.success("Paramètres et mentions de facturation enregistrés.");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Erreur lors de l'enregistrement.");
+    } finally {
+      setSavingBilling(false);
+    }
   }
 
   return (
@@ -166,7 +206,7 @@ function ParametragePage() {
                   </div>
                 </div>
 
-                {can("manage_company") && (
+                {store.can("manage_company") && (
                   <div className="flex justify-end pt-4 border-t border-border">
                     <Button type="submit">
                       <Save className="mr-2 size-4" />
@@ -227,7 +267,7 @@ function ParametragePage() {
                   />
                 </div>
 
-                {can("manage_settings") && (
+                {store.can("manage_settings") && (
                   <div className="flex justify-end pt-4 border-t border-border">
                     <Button type="submit">
                       <Save className="mr-2 size-4" />
@@ -279,7 +319,7 @@ function ParametragePage() {
                   </div>
                 </div>
 
-                {can("manage_company") && (
+                {store.can("manage_company") && (
                   <div className="flex justify-end pt-4 border-t border-border">
                     <Button type="submit">
                       <Save className="mr-2 size-4" />

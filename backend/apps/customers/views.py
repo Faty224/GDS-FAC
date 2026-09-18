@@ -21,7 +21,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
         # Handle active/archived query params
         include_archived = self.request.query_params.get('include_archived', 'false').lower() == 'true'
         if not include_archived:
-            qs = qs.filter(is_archived=False)
+            qs = qs.exclude(status='ARCHIVE')
 
         return qs
 
@@ -33,10 +33,11 @@ class CustomerViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def toggle_archive(self, request, pk=None):
         customer = self.get_object()
-        customer.is_archived = not customer.is_archived
+        customer.status = 'ARCHIVE' if customer.status != 'ARCHIVE' else 'ACTIF'
         customer.save()
         return Response({
             'id': customer.id,
-            'is_archived': customer.is_archived,
+            'status': customer.status,
+            'is_archived': customer.status == 'ARCHIVE',
             'message': 'Statut d\'archivage mis à jour.'
         })

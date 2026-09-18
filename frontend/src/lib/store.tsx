@@ -7,16 +7,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  demoAudit,
-  demoBillingSettings,
-  demoCompany,
-  demoCustomers,
-  demoInvoices,
-  demoProducts,
-  demoTransmissions,
-  demoUsers,
-} from "./demo-data";
 import type {
   AuditEntry,
   BillingSetting,
@@ -29,20 +19,35 @@ import type {
   Role,
   User,
 } from "./types";
-import { IS_DEMO_MODE, getAccessToken, setAccessToken } from "@/services/api";
+import { getAccessToken, setAccessToken } from "@/services/api";
 import { authService } from "@/services/resources.service";
 
 /**
  * Couche d'état applicative.
  *
- * En MODE DÉMONSTRATION (aucune VITE_API_URL configurée), les données vivent ici
- * et sont persistées dans le navigateur afin de parcourir le cycle complet.
- * Une fois le backend Django branché, chaque action ci-dessous appelle le service
- * correspondant dans `src/services/` (même signature, mêmes types).
+ * L'état local ne contient que les données de session (utilisateur courant)
+ * et les entrées d'audit. Toutes les données métier (clients, produits, factures…)
+ * sont chargées depuis le backend Django via les hooks dans `src/services/useApiData.ts`.
  */
 
-const STORAGE_KEY = "gdsf.state.v1";
 const SESSION_KEY = "gdsf.session.v1";
+
+const EMPTY_COMPANY: Company = {
+  id: "",
+  name: "",
+  legal_form: "",
+  nif: "",
+  rccm: "",
+  address: "",
+  city: "",
+  country: "Guinée",
+  phone: "",
+  email: "",
+  website: "",
+  tax_regime: "",
+  bank_name: "",
+  bank_account: "",
+};
 
 interface State {
   company: Company;
@@ -57,14 +62,14 @@ interface State {
 }
 
 const initialState: State = {
-  company: demoCompany,
-  users: demoUsers,
-  customers: demoCustomers,
-  products: demoProducts,
-  billingSettings: demoBillingSettings,
-  invoices: demoInvoices,
-  transmissions: demoTransmissions,
-  audit: demoAudit,
+  company: EMPTY_COMPANY,
+  users: [],
+  customers: [],
+  products: [],
+  billingSettings: [],
+  invoices: [],
+  transmissions: [],
+  audit: [],
   payments: [],
 };
 
@@ -116,22 +121,13 @@ interface StoreValue extends State {
   saveUser: (user: User) => void;
   deleteUser: (id: string) => void;
   logAudit: (action: string, target: string, result?: AuditEntry["result"]) => void;
-  resetDemoData: () => void;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
 
 export function normalizeUser(raw: any): User {
-  if (!raw) {
-    return {
-      id: "1",
-      username: "STHF",
-      full_name: "Administrateur STHF",
-      email: "teamsthf@gmail.com",
-      role: "admin",
-      company_id: "1",
-      is_active: true,
-    };
+  if (!raw || typeof raw !== "object") {
+    throw new Error("Réponse utilisateur invalide ou serveur indisponible.");
   }
   const roleRaw = raw.role_name || raw.role || (raw.is_superuser ? "admin" : "consultation");
   const roleStr = typeof roleRaw === "string" ? roleRaw.toLowerCase() : "";
@@ -143,14 +139,14 @@ export function normalizeUser(raw: any): User {
       : "consultation";
 
   return {
-    id: String(raw.id ?? "1"),
-    username: raw.username || raw.email || "Utilisateur",
+    id: String(raw.id ?? ""),
+    username: raw.username || raw.email || "",
     full_name:
       raw.full_name ||
       raw.first_name ||
       raw.username ||
       raw.email ||
-      "Administrateur STHF",
+      "Utilisateur",
     email: raw.email || "",
     role: normalizedRole,
     company_id: String(raw.company_id || "1"),
@@ -187,12 +183,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     init();
   }, []);
 
+  // Nettoyage : suppression de l'ancienne clé de cache locale si elle existe
   useEffect(() => {
-    if (!isReady) return;
-    if (IS_DEMO_MODE) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    }
-  }, [state, isReady]);
+    window.localStorage.removeItem("gdsf.state.v1");
+  }, []);
 
   const logAudit = useCallback(
     (action: string, target: string, result: AuditEntry["result"] = "succes") => {
@@ -239,10 +233,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(() => {
-    if (!IS_DEMO_MODE) {
-      authService.logout().catch(() => {});
-      setAccessToken(null);
-    }
+    authService.logout().catch(() => {});
+    setAccessToken(null);
     setCurrentUser(null);
     window.localStorage.removeItem(SESSION_KEY);
   }, []);
@@ -311,7 +303,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                     ...i.history,
                     {
                       id: uid("h"),
-                      label: `Transmission eTVA (simulation) — ${transmission.status}`,
+                      label: `Transmission eTVA — ${transmission.status}`,
                       at: transmission.sent_at,
                       user: currentUser?.full_name ?? "Système",
                     },
@@ -360,7 +352,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }),
       saveUser: (user) => setState((s) => ({ ...s, users: upsert(s.users, user) })),
       deleteUser: (id) => setState((s) => ({ ...s, users: s.users.filter((u) => u.id !== id) })),
-      resetDemoData: () => setState(initialState),
     }),
     [state, currentUser, isReady, login, logout, logAudit],
   );

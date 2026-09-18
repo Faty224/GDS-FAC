@@ -50,6 +50,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { uid, useStore, ROLE_LABELS } from "@/lib/store";
+import { useUsers } from "@/services/useApiData";
+import { usersService } from "@/services/resources.service";
 import type { Role, User } from "@/lib/types";
 
 export const Route = createFileRoute("/_espace/utilisateurs")({
@@ -66,7 +68,11 @@ export const Route = createFileRoute("/_espace/utilisateurs")({
 });
 
 function UtilisateursPage() {
-  const { company, users, saveUser, deleteUser, logAudit, can, currentUser } = useStore();
+  const store = useStore();
+  const { company, saveUser, deleteUser, logAudit, can, currentUser } = store;
+
+  const { data: apiUsers, reload } = useUsers([]);
+  const users = apiUsers.length > 0 ? apiUsers : store.users;
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
@@ -75,60 +81,74 @@ function UtilisateursPage() {
   // Form state
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState<Role>("facturier");
 
   const filteredUsers = users.filter((u) => {
     const matchesSearch =
-      u.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase());
+      (u.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (u.email || "").toLowerCase().includes(search.toLowerCase());
     const matchesRole = roleFilter === "all" || u.role === roleFilter;
     return matchesSearch && matchesRole;
   });
 
-  function handleCreateUser(e: React.FormEvent) {
+  async function handleCreateUser(e: React.FormEvent) {
     e.preventDefault();
     if (!fullName.trim() || !email.trim()) {
       toast.error("Veuillez remplir tous les champs obligatoires.");
       return;
     }
 
-    const newUser: User = {
-      id: uid("usr"),
-      full_name: fullName.trim(),
-      email: email.trim().toLowerCase(),
-      role,
-      company_id: company.id,
-      is_active: true,
-    };
-
-    saveUser(newUser);
-    logAudit("Création Utilisateur", newUser.email);
-    toast.success(`Utilisateur ${newUser.full_name} créé avec succès.`);
-    setOpenModal(false);
-    setFullName("");
-    setEmail("");
-    setRole("facturier");
+    try {
+      await usersService.create({
+        full_name: fullName.trim(),
+        username: email.trim().split("@")[0],
+        email: email.trim().toLowerCase(),
+        password: password.trim() || "Pass@2026!",
+        role,
+        is_active: true,
+      });
+      reload();
+      store.logAudit("Création Utilisateur", email);
+      toast.success(`Utilisateur ${fullName} créé avec succès dans PostgreSQL.`);
+      setOpenModal(false);
+      setFullName("");
+      setEmail("");
+      setPassword("");
+      setRole("facturier");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Erreur lors de la création de l'utilisateur.");
+    }
   }
 
-  function handleToggleActive(u: User) {
+  async function handleToggleActive(u: User) {
     if (u.id === currentUser?.id) {
       toast.error("Vous ne pouvez pas désactiver votre propre compte.");
       return;
     }
-    const updated = { ...u, is_active: !u.is_active };
-    saveUser(updated);
-    logAudit(updated.is_active ? "Activation Utilisateur" : "Désactivation Utilisateur", u.email);
-    toast.success(`Compte de ${u.full_name} ${updated.is_active ? "activé" : "désactivé"}.`);
+    try {
+      await usersService.update(u.id, { is_active: !u.is_active });
+      reload();
+      store.logAudit(u.is_active ? "Désactivation Utilisateur" : "Activation Utilisateur", u.email);
+      toast.success(`Compte de ${u.full_name} mis à jour.`);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Erreur lors de la mise à jour.");
+    }
   }
 
-  function handleDelete(u: User) {
+  async function handleDelete(u: User) {
     if (u.id === currentUser?.id) {
       toast.error("Vous ne pouvez pas supprimer votre propre compte.");
       return;
     }
-    deleteUser(u.id);
-    logAudit("Suppression Utilisateur", u.email);
-    toast.success(`Utilisateur ${u.full_name} supprimé.`);
+    try {
+      await usersService.remove(u.id);
+      reload();
+      store.logAudit("Suppression Utilisateur", u.email);
+      toast.success(`Utilisateur ${u.full_name} supprimé.`);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Erreur lors de la suppression.");
+    }
   }
 
   return (
@@ -145,7 +165,7 @@ function UtilisateursPage() {
                   Nouvel Utilisateur
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto p-6">
                 <DialogHeader>
                   <DialogTitle>Ajouter un utilisateur</DialogTitle>
                   <DialogDescription>
@@ -155,7 +175,7 @@ function UtilisateursPage() {
 
                 <form onSubmit={handleCreateUser} className="space-y-4 py-2">
                   <div className="space-y-2">
-                    <Label htmlFor="fullname">Nom Complet</Label>
+                    <Label htmlFor="fullname">Nom Complet *</Label>
                     <Input
                       id="fullname"
                       placeholder="ex: Mamadou Diallo"
@@ -166,7 +186,7 @@ function UtilisateursPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="usr_email">Adresse Email</Label>
+                    <Label htmlFor="usr_email">Adresse Email *</Label>
                     <Input
                       id="usr_email"
                       type="email"
@@ -178,7 +198,18 @@ function UtilisateursPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="role">Rôle & Privilèges</Label>
+                    <Label htmlFor="usr_pass">Mot de Passe Initial</Label>
+                    <Input
+                      id="usr_pass"
+                      type="password"
+                      placeholder="Par défaut: Pass@2026!"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="role">Rôle & Privilèges *</Label>
                     <Select value={role} onValueChange={(v) => setRole(v as Role)}>
                       <SelectTrigger id="role">
                         <SelectValue placeholder="Sélectionner un rôle" />
@@ -327,7 +358,7 @@ function UtilisateursPage() {
                               : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
                         }
                       >
-                        {ROLE_LABELS[u.role]}
+                        {ROLE_LABELS[(u.role as Role) ?? "facturier"]}
                       </Badge>
                     </TableCell>
                     <TableCell>

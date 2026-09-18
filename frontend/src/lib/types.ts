@@ -7,6 +7,7 @@ export interface User {
   username?: string;
   full_name: string;
   email: string;
+  password?: string;
   role: Role;
   company_id: string;
   is_active: boolean;
@@ -122,6 +123,9 @@ export interface Invoice {
   etva_message: string | null;
   payment_status?: PaymentStatus;
   paid_amount?: number;
+  total_ht?: number;
+  total_tva?: number;
+  total_ttc?: number;
   created_at: string;
   history: HistoryEntry[];
 }

@@ -59,17 +59,15 @@ class CreditNoteViewSet(viewsets.ModelViewSet):
 
             credit_note.number = official_number
             credit_note.status = InvoiceStatus.VALIDATED
-            credit_note.validated_at = timezone.now()
             credit_note.recalculate_totals()
             credit_note.save()
 
             AuditLog.objects.create(
                 user=request.user,
-                company=company,
                 action='VALIDATE_CREDIT_NOTE',
-                target_object=f"Avoir {credit_note.number}",
+                entity_name='Avoir',
+                entity_id=credit_note.id,
                 ip_address=request.META.get('REMOTE_ADDR', ''),
-                status='SUCCESS',
                 details={'credit_note_id': credit_note.id, 'number': credit_note.number, 'total_ttc': str(credit_note.total_ttc)}
             )
 

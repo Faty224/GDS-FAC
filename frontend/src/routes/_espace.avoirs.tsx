@@ -65,6 +65,8 @@ import {
 import { formatDate, formatGNF, invoiceTotals } from "@/lib/format";
 import { downloadInvoicePdfDocument, printInvoiceDocument } from "@/lib/pdf";
 import { uid, useStore } from "@/lib/store";
+import { useCreditNotes, useInvoices, useCustomers } from "@/services/useApiData";
+import { creditNotesService, invoicesService } from "@/services/resources.service";
 import type { Invoice } from "@/lib/types";
 
 export const Route = createFileRoute("/_espace/avoirs")({
@@ -81,18 +83,12 @@ export const Route = createFileRoute("/_espace/avoirs")({
 });
 
 function AvoirsPage() {
-  const {
-    company,
-    invoices,
-    customers,
-    billingSettings,
-    saveInvoice,
-    validateInvoice,
-    registerTransmission,
-    logAudit,
-    can,
-    currentUser,
-  } = useStore();
+  const store = useStore();
+  const { company, logAudit, can } = store;
+
+  const { data: creditNotes, loading, error, reload } = useCreditNotes([]);
+  const { data: invoices } = useInvoices([]);
+  const { data: customers } = useCustomers([]);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -107,12 +103,11 @@ function AvoirsPage() {
   const [parentInvoiceId, setParentInvoiceId] = useState("");
   const [reason, setReason] = useState("Erreur de facturation");
 
-  const avoirsOnly = invoices.filter((i) => i.document_type === "avoir");
   const validatedFactures = invoices.filter(
     (i) => i.document_type === "facture" && (i.status === "validee" || i.status === "transmise"),
   );
 
-  const filteredAvoirs = avoirsOnly.filter((av) => {
+  const filteredAvoirs = creditNotes.filter((av) => {
     const customer = customers.find((c) => c.id === av.customer_id);
     const parentInv = invoices.find((i) => i.id === av.parent_invoice_id);
     const matchesSearch =
@@ -123,7 +118,7 @@ function AvoirsPage() {
     return matchesSearch && matchesStatus;
   });
 
-  function handleCreateAvoir(e: React.FormEvent) {
+  async function handleCreateAvoir(e: React.FormEvent) {
     e.preventDefault();
     const parentInv = invoices.find((i) => i.id === parentInvoiceId);
     if (!parentInv) {
@@ -131,82 +126,60 @@ function AvoirsPage() {
       return;
     }
 
-    const defaultSetting = billingSettings[0];
-    const refNumber = String(avoirsOnly.length + 1).padStart(4, "0");
-    const today = new Date().toISOString().split("T")[0]!;
-
-    const newAvoir: Invoice = {
-      id: uid("av"),
-      company_id: company.id,
-      document_type: "avoir",
-      parent_invoice_id: parentInv.id,
-      reference: `AV-2026-${refNumber}`,
-      internal_reference: `INT-AV-${refNumber}`,
-      customer_id: parentInv.customer_id,
-      billing_setting_id: defaultSetting?.id ?? "",
-      issue_date: today,
-      due_date: today,
-      execution_note: `Avoir sur facture ${parentInv.reference} — Motif: ${reason}`,
-      lines: parentInv.lines.map((l) => ({ ...l, id: uid("line") })),
-      status: "brouillon",
-      etva_status: "non_transmis",
-      etva_reference: null,
-      etva_message: null,
-      created_at: new Date().toISOString(),
-      history: [
-        {
-          id: uid("h"),
-          label: `Création de l'avoir sur ${parentInv.reference}`,
-          at: new Date().toISOString(),
-          user: currentUser?.full_name ?? "Utilisateur",
-        },
-      ],
-    };
-
-    saveInvoice(newAvoir);
-    logAudit("Création Avoir", newAvoir.reference);
-    toast.success(`Facture d'avoir ${newAvoir.reference} créée (Brouillon).`);
-    setOpenModal(false);
-    setParentInvoiceId("");
-  }
-
-  function handleValidate(av: Invoice) {
-    validateInvoice(av.id);
-    logAudit("Validation Avoir", av.reference);
-    toast.success(`Avoir ${av.reference} validé.`);
-  }
-
-  function handleSendEtva(av: Invoice) {
-    const etvaRef = `DGI-AVOIR-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    registerTransmission(
-      {
-        id: uid("etv"),
-        invoice_id: av.id,
-        invoice_reference: av.reference,
+    try {
+      const payload: Partial<Invoice> = {
         document_type: "avoir",
-        sent_at: new Date().toISOString(),
-        status: "accepte",
-        dgi_reference: etvaRef,
-        message: "Avoir enregistré par le serveur eTVA DGI",
-        http_status: 200,
-        duration_ms: 130,
-        operation: "SUBMIT_CREDIT_NOTE",
-        mode: "simulation",
-      },
-      {
-        status: "transmise",
-        etva_status: "accepte",
-        etva_reference: etvaRef,
-        etva_message: "Avoir validé par eTVA DGI",
-      },
-    );
-    logAudit("Transmission eTVA Avoir", av.reference);
-    toast.success(`Avoir ${av.reference} transmis à l'eTVA DGI (${etvaRef}).`);
+        parent_invoice_id: parentInv.id,
+        customer_id: parentInv.customer_id,
+        execution_note: `Avoir sur facture ${parentInv.reference} — Motif: ${reason}`,
+        lines: parentInv.lines,
+      };
+      await creditNotesService.create(payload);
+      reload();
+      store.logAudit("Création Avoir", "Avoir");
+      toast.success("Facture d'avoir créée avec succès dans PostgreSQL.");
+      setOpenModal(false);
+      setParentInvoiceId("");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Erreur lors de la création de l'avoir.");
+    }
+  }
+
+  async function handleValidate(av: Invoice) {
+    try {
+      await invoicesService.validate(av.id);
+      reload();
+      store.logAudit("Validation Avoir", av.reference);
+      toast.success(`Avoir ${av.reference} validé.`);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Erreur lors de la validation.");
+    }
+  }
+
+  async function handleSendEtva(av: Invoice) {
+    try {
+      await invoicesService.transmitEtva(av.id);
+      reload();
+      store.logAudit("Transmission eTVA Avoir", av.reference);
+      toast.success(`Avoir ${av.reference} transmis à l'eTVA DGI.`);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Erreur lors de la transmission eTVA.");
+    }
   }
 
   async function handleDownloadPdfFile(av: Invoice) {
-    const cust = customers.find((c) => c.id === av.customer_id);
-    await downloadInvoicePdfDocument(av, company, cust);
+    try {
+      const blob = await creditNotesService.downloadPdf(av.id);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${av.reference}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      const cust = customers.find((c) => c.id === av.customer_id);
+      await downloadInvoicePdfDocument(av, company, cust);
+    }
   }
 
   function handlePrintInvoice(av: Invoice) {
@@ -238,7 +211,7 @@ function AvoirsPage() {
 
                 <form onSubmit={handleCreateAvoir} className="space-y-4 py-2">
                   <div className="space-y-2">
-                    <Label htmlFor="parent">Facture d'origine</Label>
+                    <Label htmlFor="parent">Facture d'origine *</Label>
                     <Select value={parentInvoiceId} onValueChange={setParentInvoiceId}>
                       <SelectTrigger id="parent">
                         <SelectValue placeholder="Choisir une facture validée" />
@@ -256,8 +229,26 @@ function AvoirsPage() {
                     </Select>
                   </div>
 
+                  {parentInvoiceId && (() => {
+                    const parent = invoices.find((i) => i.id === parentInvoiceId);
+                    if (!parent) return null;
+                    const cust = customers.find((c) => c.id === parent.customer_id);
+                    const totals = invoiceTotals(parent);
+                    return (
+                      <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-md text-xs space-y-1.5">
+                        <div className="flex justify-between font-semibold">
+                          <span>Client : {cust?.name}</span>
+                          <span className="font-mono text-rose-600">Total Facture : {formatGNF(totals.ttc)}</span>
+                        </div>
+                        <div className="text-muted-foreground">
+                          {parent.lines.length} ligne(s) d'article(s) sera(seront) annulée(s) en totalité.
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   <div className="space-y-2">
-                    <Label htmlFor="reason">Motif de l'avoir</Label>
+                    <Label htmlFor="reason">Motif de l'avoir *</Label>
                     <Select value={reason} onValueChange={setReason}>
                       <SelectTrigger id="reason">
                         <SelectValue placeholder="Choisir un motif" />
@@ -279,7 +270,9 @@ function AvoirsPage() {
                     <Button type="button" variant="outline" onClick={() => setOpenModal(false)}>
                       Annuler
                     </Button>
-                    <Button type="submit">Générer l'avoir</Button>
+                    <Button type="submit" className="bg-rose-600 hover:bg-rose-700 text-white">
+                      Générer l'avoir
+                    </Button>
                   </DialogFooter>
                 </form>
               </DialogContent>

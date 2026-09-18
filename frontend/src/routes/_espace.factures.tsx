@@ -17,6 +17,8 @@ import {
   Wallet,
   FileSpreadsheet,
   AlertTriangle,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/page-header";
 import {
@@ -72,6 +74,8 @@ import {
 import { formatDate, formatGNF, invoiceTotals } from "@/lib/format";
 import { downloadInvoicePdfDocument, printInvoiceDocument } from "@/lib/pdf";
 import { uid, useStore } from "@/lib/store";
+import { useInvoices, useCustomers, useProducts } from "@/services/useApiData";
+import { invoicesService } from "@/services/resources.service";
 import type { Invoice, InvoiceLine } from "@/lib/types";
 
 export const Route = createFileRoute("/_espace/factures")({
@@ -93,27 +97,20 @@ export const Route = createFileRoute("/_espace/factures")({
 
 function FacturesPage() {
   const searchParams = Route.useSearch();
-  const {
-    company,
-    invoices,
-    customers,
-    products,
-    billingSettings,
-    saveInvoice,
-    validateInvoice,
-    registerTransmission,
-    registerPayment,
-    payments,
-    logAudit,
-    can,
-    currentUser,
-  } = useStore();
+  const store = useStore();
+  const { company, billingSettings, registerPayment, payments, logAudit, can, currentUser } = store;
+  
+  const { data: invoices, loading, error, reload } = useInvoices([]);
+  const { data: customers } = useCustomers([]);
+  const { data: products } = useProducts([]);
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [openModal, setOpenModal] = useState(Boolean(searchParams.new));
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
-    type: "validate" | "send_etva";
+    type: "validate" | "send_etva" | "delete";
     invoice: Invoice;
   } | null>(null);
 
@@ -126,8 +123,10 @@ function FacturesPage() {
 
   // Form state for creation
   const [customerId, setCustomerId] = useState("");
+  const [dueDate, setDueDate] = useState<string>("");
   const [selectedProductId, setSelectedProductId] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const [customPrice, setCustomPrice] = useState<number | "">("");
   const [lines, setLines] = useState<InvoiceLine[]>([]);
 
   const facturesOnly = invoices.filter((i) => i.document_type === "facture");
@@ -141,12 +140,21 @@ function FacturesPage() {
     return matchesSearch && matchesStatus;
   });
 
+  function handleProductSelect(prodId: string) {
+    setSelectedProductId(prodId);
+    const prod = products.find((p) => p.id === prodId);
+    if (prod) {
+      setCustomPrice(prod.unit_price);
+    }
+  }
+
   function handleAddItem() {
     const prod = products.find((p) => p.id === selectedProductId);
     if (!prod) {
-      toast.error("Veuillez sélectionner un produit.");
+      toast.error("Veuillez sélectionner un produit ou service.");
       return;
     }
+    const priceToUse = customPrice !== "" ? Number(customPrice) : prod.unit_price;
     setLines((prev) => [
       ...prev,
       {
@@ -154,15 +162,24 @@ function FacturesPage() {
         product_id: prod.id,
         description: prod.label,
         quantity: Number(quantity),
-        unit_price: prod.unit_price,
-        vat_rate: prod.vat_rate,
+        unit_price: priceToUse,
+        vat_rate: prod.vat_rate <= 1 ? prod.vat_rate : prod.vat_rate / 100,
       },
     ]);
     setSelectedProductId("");
     setQuantity(1);
+    setCustomPrice("");
   }
 
-  function handleCreateInvoice(e: React.FormEvent) {
+  function handleRemoveLine(index: number) {
+    setLines((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  const creationSubtotalHT = lines.reduce((acc, l) => acc + l.quantity * l.unit_price, 0);
+  const creationVat = creationSubtotalHT * 0.18;
+  const creationTotalTTC = creationSubtotalHT + creationVat;
+
+  async function handleCreateInvoice(e: React.FormEvent) {
     e.preventDefault();
     if (!customerId) {
       toast.error("Veuillez choisir un client.");
@@ -173,84 +190,76 @@ function FacturesPage() {
       return;
     }
 
-    const defaultSetting = billingSettings[0];
-    const refNumber = String(facturesOnly.length + 1).padStart(4, "0");
-    const today = new Date().toISOString().split("T")[0]!;
-    const dueDate = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0]!;
-
-    const newInv: Invoice = {
-      id: uid("inv"),
-      company_id: company.id,
-      document_type: "facture",
-      parent_invoice_id: null,
-      reference: `FAC-2026-${refNumber}`,
-      internal_reference: `INT-${refNumber}`,
-      customer_id: customerId,
-      billing_setting_id: defaultSetting?.id ?? "",
-      issue_date: today,
-      due_date: dueDate,
-      execution_note: "Facture générée via GDS Facture",
-      lines,
-      status: "brouillon",
-      etva_status: "non_transmis",
-      etva_reference: null,
-      etva_message: null,
-      created_at: new Date().toISOString(),
-      history: [
-        {
-          id: uid("h"),
-          label: "Création de la facture (Brouillon)",
-          at: new Date().toISOString(),
-          user: currentUser?.full_name ?? "Utilisateur",
-        },
-      ],
-    };
-
-    saveInvoice(newInv);
-    logAudit("Création Facture", newInv.reference);
-    toast.success(`Facture ${newInv.reference} créée avec succès (Brouillon).`);
-    setOpenModal(false);
-    setCustomerId("");
-    setLines([]);
-  }
-
-  function handleValidate(inv: Invoice) {
-    validateInvoice(inv.id);
-    logAudit("Validation Facture", inv.reference);
-    toast.success(`Facture ${inv.reference} validée.`);
-  }
-
-  function handleSendEtva(inv: Invoice) {
-    const etvaRef = `DGI-ETVA-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    registerTransmission(
-      {
-        id: uid("etv"),
-        invoice_id: inv.id,
-        invoice_reference: inv.reference,
+    try {
+      setIsSubmitting(true);
+      const payload: Partial<Invoice> = {
+        customer_id: customerId,
         document_type: "facture",
-        sent_at: new Date().toISOString(),
-        status: "accepte",
-        dgi_reference: etvaRef,
-        message: "Transmission acceptée par le serveur eTVA DGI",
-        http_status: 200,
-        duration_ms: 145,
-        operation: "SUBMIT_INVOICE",
-        mode: "simulation",
-      },
-      {
-        status: "transmise",
-        etva_status: "accepte",
-        etva_reference: etvaRef,
-        etva_message: "Validé par eTVA DGI",
-      },
-    );
-    logAudit("Transmission eTVA", inv.reference);
-    toast.success(`Facture ${inv.reference} transmise à l'eTVA DGI (${etvaRef}).`);
+        due_date: dueDate || undefined,
+        lines,
+        execution_note: "Facture générée via GDS Facture",
+      };
+      await invoicesService.create(payload);
+      reload();
+      store.logAudit("Création Facture", "Facture");
+      toast.success("Facture créée avec succès dans la base de données PostgreSQL.");
+      setOpenModal(false);
+      setCustomerId("");
+      setDueDate("");
+      setLines([]);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Erreur lors de la création de la facture.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleDeleteInvoice(inv: Invoice) {
+    try {
+      await invoicesService.remove(inv.id);
+      reload();
+      store.logAudit("Suppression Brouillon", inv.reference);
+      toast.success(`Facture brouillon ${inv.reference} supprimée avec succès.`);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Erreur lors de la suppression de la facture.");
+    }
+  }
+
+  async function handleValidate(inv: Invoice) {
+    try {
+      await invoicesService.validate(inv.id);
+      reload();
+      store.logAudit("Validation Facture", inv.reference);
+      toast.success(`Facture ${inv.reference} validée avec succès.`);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Erreur lors de la validation.");
+    }
+  }
+
+  async function handleSendEtva(inv: Invoice) {
+    try {
+      await invoicesService.transmitEtva(inv.id);
+      reload();
+      store.logAudit("Transmission eTVA", inv.reference);
+      toast.success(`Facture ${inv.reference} transmise à l'eTVA DGI.`);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Erreur lors de la transmission eTVA.");
+    }
   }
 
   async function handleDownloadPdfFile(inv: Invoice) {
-    const cust = customers.find((c) => c.id === inv.customer_id);
-    await downloadInvoicePdfDocument(inv, company, cust);
+    try {
+      const blob = await invoicesService.downloadPdf(inv.id);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${inv.reference}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      const cust = customers.find((c) => c.id === inv.customer_id);
+      await downloadInvoicePdfDocument(inv, company, cust);
+    }
   }
 
   function handlePrintInvoice(inv: Invoice) {
@@ -367,7 +376,7 @@ function FacturesPage() {
                     Nouvelle Facture
                   </Button>
                 </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-6">
                 <DialogHeader>
                   <DialogTitle>Créer une nouvelle facture</DialogTitle>
                   <DialogDescription>
@@ -376,34 +385,46 @@ function FacturesPage() {
                 </DialogHeader>
 
                 <form onSubmit={handleCreateInvoice} className="space-y-4 py-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="client">Client</Label>
-                    <Select value={customerId} onValueChange={setCustomerId}>
-                      <SelectTrigger id="client">
-                        <SelectValue placeholder="Sélectionner un client" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customers.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.name} ({c.nifp || "Sans NIFp"})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="client">Client *</Label>
+                      <Select value={customerId} onValueChange={setCustomerId}>
+                        <SelectTrigger id="client">
+                          <SelectValue placeholder="Sélectionner un client" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {customers.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.name} ({c.nifp || "Sans NIFp"})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="due_date">Date d'échéance de paiement</Label>
+                      <Input
+                        id="due_date"
+                        type="date"
+                        value={dueDate}
+                        onChange={(e) => setDueDate(e.target.value)}
+                      />
+                    </div>
                   </div>
 
                   <div className="border border-border rounded-md p-3 space-y-3 bg-accent/20">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Ajouter une ligne d'article
+                      Ajouter une ligne d'article au catalogue
                     </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="sm:col-span-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                      <div className="sm:col-span-6">
                         <Label htmlFor="prod" className="text-xs">
-                          Produit / Service
+                          Article / Prestation *
                         </Label>
-                        <Select value={selectedProductId} onValueChange={setSelectedProductId}>
+                        <Select value={selectedProductId} onValueChange={handleProductSelect}>
                           <SelectTrigger id="prod">
-                            <SelectValue placeholder="Choisir un produit" />
+                            <SelectValue placeholder="Choisir un article" />
                           </SelectTrigger>
                           <SelectContent>
                             {products.map((p) => (
@@ -414,7 +435,19 @@ function FacturesPage() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div>
+                      <div className="sm:col-span-3">
+                        <Label htmlFor="price_custom" className="text-xs">
+                          Prix Unit. HT (GNF)
+                        </Label>
+                        <Input
+                          id="price_custom"
+                          type="number"
+                          placeholder="Prix unitaire"
+                          value={customPrice}
+                          onChange={(e) => setCustomPrice(e.target.value ? Number(e.target.value) : "")}
+                        />
+                      </div>
+                      <div className="sm:col-span-3">
                         <Label htmlFor="qty" className="text-xs">
                           Quantité
                         </Label>
@@ -439,31 +472,74 @@ function FacturesPage() {
                   </div>
 
                   {lines.length > 0 && (
-                    <div className="border border-border rounded-md p-3 space-y-2">
-                      <p className="text-xs font-semibold text-muted-foreground">
-                        Lignes ajoutées ({lines.length})
-                      </p>
-                      {lines.map((it, idx) => (
-                        <div
-                          key={idx}
-                          className="flex justify-between items-center text-sm py-1 border-b last:border-0 border-border"
-                        >
-                          <span>
-                            {it.description} x{it.quantity}
-                          </span>
-                          <span className="font-medium">
-                            {formatGNF(it.unit_price * it.quantity)}
-                          </span>
+                    <div className="border border-border rounded-md p-3 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <p className="text-xs font-semibold text-muted-foreground">
+                          Lignes de facture ({lines.length})
+                        </p>
+                      </div>
+                      <div className="divide-y divide-border">
+                        {lines.map((it, idx) => (
+                          <div
+                            key={idx}
+                            className="flex justify-between items-center text-sm py-2"
+                          >
+                            <div>
+                              <p className="font-medium text-foreground">{it.description}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {it.quantity} x {formatGNF(it.unit_price)} (TVA 18%)
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="font-semibold font-mono">
+                                {formatGNF(it.unit_price * it.quantity)}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-7 text-rose-600 hover:text-rose-700"
+                                onClick={() => handleRemoveLine(idx)}
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Financial summary during creation */}
+                      <div className="pt-2 border-t border-border bg-slate-50 dark:bg-slate-900 p-3 rounded text-xs space-y-1">
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Total HT :</span>
+                          <span className="font-mono">{formatGNF(creationSubtotalHT)}</span>
                         </div>
-                      ))}
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>TVA DGI (18%) :</span>
+                          <span className="font-mono">{formatGNF(creationVat)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-sm text-foreground pt-1 border-t border-border">
+                          <span>Total TTC à payer :</span>
+                          <span className="font-mono text-primary">{formatGNF(creationTotalTTC)}</span>
+                        </div>
+                      </div>
                     </div>
                   )}
 
                   <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setOpenModal(false)}>
+                    <Button type="button" variant="outline" onClick={() => setOpenModal(false)} disabled={isSubmitting}>
                       Annuler
                     </Button>
-                    <Button type="submit">Créer la facture</Button>
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                          Création en cours...
+                        </>
+                      ) : (
+                        "Créer la facture"
+                      )}
+                    </Button>
                   </DialogFooter>
                 </form>
               </DialogContent>
@@ -577,11 +653,19 @@ function FacturesPage() {
                                 </DropdownMenuItem>
                               )}
                               {inv.status === "brouillon" && can("manage_invoices") && (
-                                <DropdownMenuItem
-                                  onClick={() => setConfirmAction({ type: "validate", invoice: inv })}
-                                >
-                                  <CheckCircle2 className="mr-2 size-4 text-emerald-600" /> Valider
-                                </DropdownMenuItem>
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={() => setConfirmAction({ type: "validate", invoice: inv })}
+                                  >
+                                    <CheckCircle2 className="mr-2 size-4 text-emerald-600" /> Valider
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => setConfirmAction({ type: "delete", invoice: inv })}
+                                    className="text-rose-600 focus:text-rose-600"
+                                  >
+                                    <Trash2 className="mr-2 size-4 text-rose-600" /> Supprimer le brouillon
+                                  </DropdownMenuItem>
+                                </>
                               )}
                               {inv.status !== "brouillon" && inv.payment_status !== "payee" && (
                                 <DropdownMenuItem onClick={() => setReminderInvoice(inv)}>
@@ -1142,12 +1226,16 @@ function FacturesPage() {
               <AlertDialogTitle>
                 {confirmAction.type === "validate"
                   ? "Voulez-vous vraiment valider cette facture ?"
-                  : "Voulez-vous vraiment transmettre cette facture à l'eTVA ?"}
+                  : confirmAction.type === "send_etva"
+                  ? "Voulez-vous vraiment transmettre cette facture à l'eTVA ?"
+                  : "Voulez-vous vraiment supprimer ce brouillon ?"}
               </AlertDialogTitle>
               <AlertDialogDescription>
                 {confirmAction.type === "validate"
                   ? `Voulez-vous vraiment valider la facture ${confirmAction.invoice.reference} ? Une fois validée, la facture devient définitive et ne pourra plus être modifiée.`
-                  : `Voulez-vous vraiment transmettre la facture ${confirmAction.invoice.reference} à la Direction Générale des Impôts (eTVA DGI) ?`}
+                  : confirmAction.type === "send_etva"
+                  ? `Voulez-vous vraiment transmettre la facture ${confirmAction.invoice.reference} à la Direction Générale des Impôts (eTVA DGI) ?`
+                  : `Cette action supprimera définitivement la facture brouillon ${confirmAction.invoice.reference} de la base de données.`}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -1155,18 +1243,23 @@ function FacturesPage() {
                 Annuler
               </AlertDialogCancel>
               <AlertDialogAction
+                className={confirmAction.type === "delete" ? "bg-rose-600 hover:bg-rose-700 text-white" : ""}
                 onClick={() => {
                   if (confirmAction.type === "validate") {
                     handleValidate(confirmAction.invoice);
-                  } else {
+                  } else if (confirmAction.type === "send_etva") {
                     handleSendEtva(confirmAction.invoice);
+                  } else if (confirmAction.type === "delete") {
+                    handleDeleteInvoice(confirmAction.invoice);
                   }
                   setConfirmAction(null);
                 }}
               >
                 {confirmAction.type === "validate"
                   ? "Oui, valider la facture"
-                  : "Oui, transmettre à l'eTVA"}
+                  : confirmAction.type === "send_etva"
+                  ? "Oui, transmettre à l'eTVA"
+                  : "Oui, supprimer le brouillon"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

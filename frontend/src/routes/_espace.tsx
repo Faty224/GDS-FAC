@@ -17,7 +17,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { ROLE_LABELS, useStore, type Permission } from "@/lib/store";
-import { IS_DEMO_MODE } from "@/services/api";
 import { authService } from "@/services/resources.service";
 
 export const Route = createFileRoute("/_espace")({
@@ -67,7 +66,7 @@ function EspaceLayout() {
   }, [isReady, currentUser, navigate]);
 
   useEffect(() => {
-    if (!IS_DEMO_MODE && currentUser) {
+    if (currentUser) {
       authService.me().catch(() => {
         logout();
         navigate({ to: "/", replace: true });
@@ -97,12 +96,7 @@ function EspaceLayout() {
       <div className="mt-4 flex-1 overflow-y-auto">
         <NavLinks onNavigate={() => setOpen(false)} />
       </div>
-      {IS_DEMO_MODE ? (
-        <p className="mt-4 rounded-md bg-white/10 px-3 py-2 text-[11px] leading-snug opacity-80">
-          Mode démonstration — aucun échange réel avec la DGI.
-        </p>
-      ) : null}
-    </div>
+      </div>
   );
 
   return (

@@ -1,10 +1,8 @@
 /**
  * Hook universel de chargement de données depuis l'API Django REST.
- * En mode DEMO (sans VITE_API_URL), retourne les données du store local.
- * En mode RÉEL, charge depuis le backend à chaque montage du composant.
+ * Charge toujours depuis le backend — aucun mode démo.
  */
 import { useCallback, useEffect, useState } from "react";
-import { IS_DEMO_MODE } from "./api";
 import {
   customersService,
   productsService,
@@ -30,11 +28,10 @@ function useApiList<T>(
   fallback: T[],
 ): LoadingState<T[]> {
   const [data, setData] = useState<T[]>(fallback);
-  const [loading, setLoading] = useState(!IS_DEMO_MODE);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (IS_DEMO_MODE) { setLoading(false); return; }
     setLoading(true);
     setError(null);
     try {
@@ -85,11 +82,10 @@ export function useUsers(fallback: any[] = []) {
 
 export function useCompany(fallback?: Company) {
   const [data, setData] = useState<Company | undefined>(fallback);
-  const [loading, setLoading] = useState(!IS_DEMO_MODE);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (IS_DEMO_MODE) { setLoading(false); return; }
     setLoading(true);
     setError(null);
     try {
@@ -108,11 +104,10 @@ export function useCompany(fallback?: Company) {
 
 export function useDashboardStats(fallback: any = {}) {
   const [data, setData] = useState<any>(fallback);
-  const [loading, setLoading] = useState(!IS_DEMO_MODE);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (IS_DEMO_MODE) { setLoading(false); return; }
     setLoading(true);
     setError(null);
     try {

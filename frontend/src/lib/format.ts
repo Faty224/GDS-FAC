@@ -55,5 +55,13 @@ export function computeTotals(lines: InvoiceLine[]): Totals {
 }
 
 export function invoiceTotals(invoice: Invoice): Totals {
-  return computeTotals(invoice.lines);
+  const lines = invoice?.lines || [];
+  if (!Array.isArray(lines) || lines.length === 0) {
+    const rawInv = invoice as any;
+    const ht = Number(rawInv?.total_ht ?? invoice?.total_ht ?? 0);
+    const vat = Number(rawInv?.total_tva ?? invoice?.total_tva ?? 0);
+    const ttc = Number(rawInv?.total_ttc ?? invoice?.total_ttc ?? (ht + vat));
+    return { ht, vat, ttc };
+  }
+  return computeTotals(lines);
 }

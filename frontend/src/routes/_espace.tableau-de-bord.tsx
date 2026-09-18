@@ -8,7 +8,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { formatDate, formatGNF } from "@/lib/format";
 import { useStore } from "@/lib/store";
-import { IS_DEMO_MODE } from "@/services/api";
 import { useInvoices, useCustomers, useDashboardStats } from "@/services/useApiData";
 
 export const Route = createFileRoute("/_espace/tableau-de-bord")({
@@ -25,14 +24,14 @@ function DashboardPage() {
   const store = useStore();
 
   // En mode réel : charger factures & statistiques depuis Django
-  const { data: invoices, loading: invLoading } = useInvoices(IS_DEMO_MODE ? store.invoices : []);
-  const { data: customers } = useCustomers(IS_DEMO_MODE ? store.customers : []);
+  const { data: invoices, loading: invLoading } = useInvoices([]);
+  const { data: customers } = useCustomers([]);
   const { data: stats, loading: statsLoading } = useDashboardStats({});
 
   const factures = invoices.filter(i => i.document_type === "facture");
 
-  // En mode réel, préférer les stats backend ; en démo, recalculer localement
-  const ca = !IS_DEMO_MODE && stats?.chiffre_affaires_ht != null
+  // Préférer les stats backend si disponibles ; recalculer sur factures réelles sinon
+  const ca = stats?.chiffre_affaires_ht != null
     ? stats.chiffre_affaires_ht
     : factures.reduce((s, i) => s + (i.lines || []).reduce((a, l) => a + l.quantity * l.unit_price, 0), 0);
 
@@ -41,15 +40,15 @@ function DashboardPage() {
     return s + ht * (1 + ((i.lines?.[0]?.vat_rate ?? 0.18)));
   }, 0);
 
-  const totalEncaisse = !IS_DEMO_MODE && stats?.total_encaisse != null
+  const totalEncaisse = stats?.total_encaisse != null
     ? stats.total_encaisse
     : factures.reduce((s, i) => s + (i.paid_amount ?? 0), 0);
 
-  const resteARecouvrer = !IS_DEMO_MODE && stats?.reste_a_recouvrer != null
+  const resteARecouvrer = stats?.reste_a_recouvrer != null
     ? stats.reste_a_recouvrer
     : Math.max(0, totalTtc - totalEncaisse);
 
-  const totalEnRetard = !IS_DEMO_MODE && stats?.factures_en_retard != null
+  const totalEnRetard = stats?.factures_en_retard != null
     ? stats.factures_en_retard
     : factures.filter(i => i.due_date && new Date(i.due_date) < new Date() && i.status !== "brouillon" && i.payment_status !== "payee").length;
 

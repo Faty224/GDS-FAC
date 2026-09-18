@@ -1,4 +1,4 @@
-﻿from decimal import Decimal
+from decimal import Decimal
 
 from django.db import models
 from django.utils import timezone
@@ -48,7 +48,7 @@ class Invoice(models.Model):
 
     date = models.DateField(
         db_column="date_facture",
-        default=timezone.now,
+        default=timezone.localdate,
         verbose_name="Date de facturation",
     )
 

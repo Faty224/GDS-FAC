@@ -5,7 +5,7 @@ from django.utils import timezone
 
 
 class UserRole(models.TextChoices):
-    ADMIN = "ADMIN", "Administrateur"
+    ADMINISTRATEUR = "ADMINISTRATEUR", "Administrateur"
     FACTURIER = "FACTURIER", "Facturier"
     CONSULTATION = "CONSULTATION", "Consultation"
 

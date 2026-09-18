@@ -28,7 +28,6 @@ import {
 import { Label } from "@/components/ui/label";
 import { formatGNF } from "@/lib/format";
 import { useStore } from "@/lib/store";
-import { IS_DEMO_MODE } from "@/services/api";
 import { customersService, invoicesService } from "@/services/resources.service";
 import { useCustomers } from "@/services/useApiData";
 import type { Customer } from "@/lib/types";
@@ -45,7 +44,7 @@ export const Route = createFileRoute("/_espace/clients")({
 
 function ClientsPage() {
   const store = useStore();
-  const { data: customers, loading, error, reload } = useCustomers(IS_DEMO_MODE ? store.customers : []);
+  const { data: customers, loading, error, reload } = useCustomers([]);
   const { invoices } = useStore();
 
   const [search, setSearch] = useState("");
@@ -55,6 +54,7 @@ function ClientsPage() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
 
+  const [clientKind, setClientKind] = useState<"entreprise" | "particulier">("entreprise");
   const [name, setName] = useState("");
   const [nifp, setNifp] = useState("");
   const [contactName, setContactName] = useState("");
@@ -77,12 +77,14 @@ function ClientsPage() {
 
   function handleOpenCreate() {
     setEditingCustomer(null);
+    setClientKind("entreprise");
     setName(""); setNifp(""); setContactName(""); setPhone(""); setEmail(""); setAddress(""); setCity("Conakry");
     setOpenModal(true);
   }
 
   function handleOpenEdit(c: Customer) {
     setEditingCustomer(c);
+    setClientKind(c.contact_name ? "entreprise" : "particulier");
     setName(c.name); setNifp(c.nifp || ""); setContactName(c.contact_name || "");
     setPhone(c.phone || ""); setEmail(c.email || ""); setAddress(c.address || ""); setCity(c.city || "Conakry");
     setOpenModal(true);
@@ -90,47 +92,41 @@ function ClientsPage() {
 
   const handleSaveCustomer = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) { toast.error("Veuillez indiquer le nom ou la raison sociale du client."); return; }
+    if (!name.trim()) {
+      toast.error(clientKind === "entreprise" ? "Veuillez indiquer la raison sociale de l'entreprise." : "Veuillez indiquer le nom complet du client.");
+      return;
+    }
     setSaving(true);
     try {
       const payload: Partial<Customer> = {
-        name: name.trim(), nifp: nifp.trim(), contact_name: contactName.trim(),
-        phone: phone.trim(), email: email.trim(), address: address.trim(), city: city.trim() || "Conakry",
+        name: name.trim(),
+        nifp: nifp.trim(),
+        contact_name: clientKind === "entreprise" ? contactName.trim() : "",
+        phone: phone.trim(),
+        email: email.trim(),
+        address: address.trim(),
+        city: city.trim() || "Conakry",
       };
-      if (IS_DEMO_MODE) {
-        const d: Customer = {
-          ...payload as any,
-          id: editingCustomer ? editingCustomer.id : `cust-${Date.now()}`,
-          company_id: store.company.id, is_active: editingCustomer ? editingCustomer.is_active : true,
-          created_at: editingCustomer ? editingCustomer.created_at : new Date().toISOString(),
-        };
-        store.saveCustomer(d);
+      if (editingCustomer) {
+        await customersService.update(editingCustomer.id, payload);
       } else {
-        if (editingCustomer) {
-          await customersService.update(editingCustomer.id, payload);
-        } else {
-          await customersService.create(payload);
-        }
-        reload();
+        await customersService.create(payload);
       }
+      reload();
       store.logAudit(editingCustomer ? "Modification Client" : "Création Client", name.trim());
-      toast.success(`Client ${name.trim()} ${editingCustomer ? "mis à jour" : "créé"} avec succès.`);
+      toast.success(`Client ${name.trim()} (${clientKind === "entreprise" ? "Entreprise" : "Particulier"}) ${editingCustomer ? "mis à jour" : "créé"} avec succès.`);
       setOpenModal(false);
     } catch (e: any) {
       toast.error(e?.message ?? "Erreur lors de l'enregistrement.");
     } finally {
       setSaving(false);
     }
-  }, [name, nifp, contactName, phone, email, address, city, editingCustomer, store, reload]);
+  }, [name, nifp, contactName, phone, email, address, city, clientKind, editingCustomer, store, reload]);
 
   const handleToggleActive = useCallback(async (c: Customer) => {
     try {
-      if (IS_DEMO_MODE) {
-        store.saveCustomer({ ...c, is_active: !c.is_active });
-      } else {
-        await customersService.update(c.id, { is_active: !c.is_active });
-        reload();
-      }
+      await customersService.update(c.id, { is_active: !c.is_active });
+      reload();
       store.logAudit(!c.is_active ? "Activation Client" : "Désactivation Client", c.name);
       toast.success(`Client ${c.name} ${!c.is_active ? "activé" : "désactivé"}.`);
     } catch (e: any) {
@@ -140,8 +136,8 @@ function ClientsPage() {
 
   const handleDelete = useCallback(async (c: Customer) => {
     try {
-      if (IS_DEMO_MODE) { store.deleteCustomer(c.id); }
-      else { await customersService.remove(c.id); reload(); }
+      await customersService.remove(c.id);
+      reload();
       store.logAudit("Suppression Client", c.name);
       toast.success(`Client ${c.name} supprimé.`);
     } catch (e: any) {
@@ -158,49 +154,89 @@ function ClientsPage() {
     <div>
       <PageHeader
         title="Portefeuille Clients"
-        description="Gérez les fiches de vos clients, leurs numéros NIFp et leurs historiques."
+        description="Gérez les fiches de vos clients (Entreprises et Particuliers), leurs NIFp et coordonnées légales."
         actions={store.can("manage_customers") ? (
           <Dialog open={openModal} onOpenChange={setOpenModal}>
             <DialogTrigger asChild>
               <Button onClick={handleOpenCreate}><UserPlus className="mr-2 size-4" />Nouveau Client</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{editingCustomer ? "Modifier le client" : "Ajouter un nouveau client"}</DialogTitle>
-                <DialogDescription>Renseignez les coordonnées légales et fiscales du client.</DialogDescription>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-6">
+              <DialogHeader className="pb-2 border-b border-border">
+                <DialogTitle>{editingCustomer ? "Modifier la fiche client" : "Nouveau Client"}</DialogTitle>
+                <DialogDescription>Choisissez le type de client et renseignez ses coordonnées légales et fiscales.</DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleSaveCustomer} className="space-y-4 py-2">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="sm:col-span-2 space-y-2">
-                    <Label htmlFor="cust_name">Nom / Raison Sociale *</Label>
-                    <Input id="cust_name" placeholder="ex: Société TEST SARL" value={name} onChange={e => setName(e.target.value)} required />
+              <form onSubmit={handleSaveCustomer} className="space-y-3 pt-3">
+                {/* Sélecteur de type de client */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Type de Client *</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={clientKind === "entreprise" ? "default" : "outline"}
+                      className="justify-center h-9"
+                      onClick={() => setClientKind("entreprise")}
+                    >
+                      🏢 Entreprise
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={clientKind === "particulier" ? "default" : "outline"}
+                      className="justify-center h-9"
+                      onClick={() => setClientKind("particulier")}
+                    >
+                      👤 Particulier
+                    </Button>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="nifp">NIF permanent (NIFp)</Label>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <Label htmlFor="cust_name">{clientKind === "entreprise" ? "Raison Sociale *" : "Nom et Prénom *"}</Label>
+                    <Input
+                      id="cust_name"
+                      placeholder={clientKind === "entreprise" ? "ex: Société KALOUM SARL" : "ex: M. Mamadou Diallo"}
+                      value={name}
+                      onChange={e => setName(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="nifp">
+                      {clientKind === "entreprise" ? "NIF permanent (NIFp)" : "NIFp (Optionnel)"}
+                    </Label>
                     <Input id="nifp" placeholder="ex: 123456789P" value={nifp} onChange={e => setNifp(e.target.value)} className="font-mono" />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="contact">Nom du Contact</Label>
-                    <Input id="contact" placeholder="ex: M. Camara" value={contactName} onChange={e => setContactName(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
+
+                  {clientKind === "entreprise" ? (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="contact">Contact principal</Label>
+                      <Input id="contact" placeholder="ex: M. Camara" value={contactName} onChange={e => setContactName(e.target.value)} />
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-1.5">
                     <Label htmlFor="phone">Téléphone</Label>
                     <Input id="phone" placeholder="+224 620 00 00 00" value={phone} onChange={e => setPhone(e.target.value)} />
                   </div>
-                  <div className="space-y-2">
+
+                  <div className="space-y-1.5">
                     <Label htmlFor="email">Email</Label>
                     <Input id="email" type="email" placeholder="contact@client.gn" value={email} onChange={e => setEmail(e.target.value)} />
                   </div>
-                  <div className="space-y-2">
+
+                  <div className="space-y-1.5">
                     <Label htmlFor="city">Ville</Label>
                     <Input id="city" value={city} onChange={e => setCity(e.target.value)} />
                   </div>
-                  <div className="sm:col-span-2 space-y-2">
+
+                  <div className="sm:col-span-2 space-y-1.5">
                     <Label htmlFor="address">Adresse géographique</Label>
                     <Input id="address" placeholder="ex: Kaloum, Immeuble Almamya" value={address} onChange={e => setAddress(e.target.value)} />
                   </div>
                 </div>
-                <DialogFooter>
+
+                <DialogFooter className="pt-3 border-t border-border mt-2">
                   <Button type="button" variant="outline" onClick={() => setOpenModal(false)}>Annuler</Button>
                   <Button type="submit" disabled={saving}>
                     {saving && <Loader2 className="mr-2 size-4 animate-spin" />}

@@ -8,8 +8,6 @@ import axios from "axios";
  */
 export const API_URL = ((import.meta.env["VITE_API_URL"] as string | undefined) || "http://127.0.0.1:8000").trim();
 
-/** Mode démo inactif : l'application est connectée au backend Django REST. */
-export const IS_DEMO_MODE = false;
 
 const TOKEN_KEY = "gdsf.access_token";
 
